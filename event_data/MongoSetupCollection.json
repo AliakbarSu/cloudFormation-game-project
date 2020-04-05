@@ -1,0 +1,13 @@
+{
+    "RequestType" : "Create",
+    "RequestId" : "unique id for this create request",
+    "ResponseURL" : "pre-signed-url-for-create-response",
+    "ResourceType" : "Custom::MyCustomResourceType",
+    "LogicalResourceId" : "name of resource in template",
+    "StackId" : "arn:aws:cloudformation:us-east-2:namespace:stack/stack-name/guid",
+    "ResourceProperties" : {
+        "database": "test",
+        "collection": "players",
+        "url": "mongodb+srv://david101:changeme123@testclustera.ooflg.mongodb.net"
+    }
+ }        

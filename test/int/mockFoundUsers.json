@@ -1,0 +1,16 @@
+[{
+    "_id":  "5e7d88821c9d44000046dfa0",
+    "categories": [],
+    "status": "INACTIVE",
+    "email": "aliakbar.su@hotmail.com",
+    "points": [],
+    "location": {
+        "type": "Point",
+        "coordinates": [174.739777, -36.914744]
+    },
+    "createdAt": "1583922630479",
+    "updatedAt": "1584885732868",
+    "__v":  "0",
+    "connectionId": "JxS2ufPAIAMCFhB=",
+    "online": false
+}]

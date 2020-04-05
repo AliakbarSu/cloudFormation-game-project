@@ -1,0 +1,23 @@
+[{
+    "_id": "41ed8ded-6b3f-4868-b4a2-efde5de8f553",
+    "active": true,
+    "created_at": 1585288797349,
+    "players": {
+      "5e68bdc676693400080760a5": {
+        "accepted": false,
+        "accepted_at": null,
+        "connectionId": "JxS2ufPAIAMCFhA=",
+        "pid": "5e68bdc676693400080760a5"
+      },
+      "5e7d88821c9d44000046dfa0": {
+        "accepted": true,
+        "accepted_at": null,
+        "connectionId": "JxS2ufPAIAMCFhB=",
+        "pid": "5e7d88821c9d44000046dfa0"
+      }
+    },
+    "level": 1,
+    "category": "general",
+    "language": "english",
+    "updated_at": 1585288797349
+}]

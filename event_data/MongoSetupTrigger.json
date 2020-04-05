@@ -1,0 +1,31 @@
+{
+    "RequestType" : "Create",
+    "RequestId" : "unique id for this create request",
+    "ResponseURL" : "pre-signed-url-for-create-response",
+    "ResourceType" : "Custom::MyCustomResourceType",
+    "LogicalResourceId" : "name of resource in template",
+    "StackId" : "arn:aws:cloudformation:us-east-2:namespace:stack/stack-name/guid",
+    "ResourceProperties" : {
+        "groupId": "5e89c640043542192e593202",
+        "appId": "5e89d6914101a3f889d22a9e",
+        "type": "DATABASE",
+        "name": "findPlayerasa2fs11",
+        "config": {
+            "operation_types": ["INSERT", "UPDATE", "DELETE", "REPLACE"],
+            "database": "test",
+            "collection": "players",
+            "service_id": "5e89dac64101a3f889d26f4e",
+            "match": {},
+            "full_document": true
+        },
+        "event_processors": {
+            "AWS_EVENTBRIDGE": {
+            "type": "AWS_EVENTBRIDGE",
+            "config": {
+                "account_id": "408795948667",
+                "region": "us-east-1"	
+            }
+            }
+        }
+    }
+ }        

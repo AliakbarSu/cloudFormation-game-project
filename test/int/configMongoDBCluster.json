@@ -1,0 +1,46 @@
+{
+    "RequestType": "Create",
+    "StackId": "TestStack",
+    "RequestId": "TestREquest",
+    "LogicalResourceId": "tkjsajf",
+    "ResponseURL": "https://ali-test-101.s3.amazonaws.com/package.json?AWSAccessKeyId=ASIAV6LRDEZ55OQ7JMUQ&Expires=1585674177&Signature=cKbfGoF3fhCRcggOv8mtju18B%2Bs%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEBEaCXVzLWVhc3QtMSJHMEUCIBbirN%2BKVUPLWlzRikkqaUkKpC8eskQKt5uRwuh3pCBAAiEAvc2uWeHrMrdC0l3fFRlYitOCAKTYmp826QwlQdkIfB4q0wEIGhAAGgw0MDg3OTU5NDg2NjciDEWwaHeXZ9CiLhHOBiqwAZ5NT8QlFeXpNJabIhQOflRatBI6bWWSI1D%2BcvFQQVviIhwM7wlOGdWEL8vALqNCta9fdg4tSREsqD1Q0gvzyBoq7W7UhOBhgS4E5HQxV6raZvuOv4sFiRiteSgBw1QfHyN5b63wszFHdNrGYJD0zRqwXaHInbOJUc%2FQCDGVKF9v4ipVqQVoedF2tjOD1XeU4pq7RDWw7NtGsXEULUt4nv6FPspo7FHKfCplaRnFb2x8ML3ojfQFOuAB5wixd0uwhxux5orwqIcnSlMTjtCU5o3B9Wt6EYgnVQ3uq%2BCREe%2Bv0PIw1jQeFei61WiJzzuRx4D5hSg8s%2BpmGCZOoph%2FCFfBb%2FaFChfFaz19oTI2Ubnm1CZ%2B1DtJWIY0kgi7uTY8vIElAQ9Yt5ZIO7NIIqe4uBE262PUfjWN3S5uQ0dSVNwnWfS4t4Vx%2BRBmOGYtcI6m9xK0Xuez80NXaWJ6j1jg7xXuSXzq60JRKH3ba4znZiPfFqsXDQtdgLsn7faJFxN0Ip3B3acMkVDnKy0MOqUdAQlZgsmxKk2PstQ%3D",
+    "apiKey": "tbdqtutk",
+    "secretKey": "c515f21a-b71e-44b6-b49e-768e4d51b772",
+    "groupID": "5d506abda6f239401d49a06a",
+    "appName": "test-baebi",
+    "serviceName": "MyService",
+    "orgId": "5c7b7335cf09a27596230eea",
+    "groupName": "TestGroup",
+    "cluster": {
+      "autoScalling": {
+        "compute": {
+          "enabled": true,
+          "scaleDownEnabled": true,
+          "minInstanceSize": "M10",
+          "diskGBEnabled": true
+        }
+      },
+      "diskSizeGB": 10,
+      "name": "TESTCLUSTER",
+      "mongoDBMajorVersion": 4.2,
+      "providerSettings": {
+        "autoScaling": {
+          "compute": {
+            "minInstanceSize": "M10",
+            "maxInstanceSize": "M20"
+          }
+        },
+        "diskIOPS": 100,
+        "volumeType": "STANDARD",
+        "encryptEBSVolume": true,
+        "instanceSizeName": "M10",
+        "providerName": "AWS",
+        "regionName": "US_EAST_1"
+      }
+    }
+}
+
+
+
+
+

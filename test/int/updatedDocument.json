@@ -1,0 +1,15 @@
+{
+    "detail": {
+        "fullDocument": {
+            "_id": "5e68bdc676693400080760a5",
+            "location": {
+                "type": "Point",
+                "coordinates": [174.744172, -36.916182]
+            },
+            "level": "2",
+            "category": "math",
+            "language": "english",
+            "connectionId": "JxS2ufPAIAMCFhA="
+        }
+    }
+}

@@ -1,0 +1,632 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: A Node.js web service deployed to AWS Lambda.
+Parameters:
+  MongoDbApiKey:
+    Type: String
+    Default: gajriicw
+  MongoDbSecretKey:
+    Type: String
+    Default: 8db26a78-a7ca-4dce-a7c7-d3b0f7669169
+  MongoDBAtlasOrganizationID:
+    Type: String
+    Default: 5c7b7335cf09a27596230eea
+  AtlasGroupName:
+    Type: String
+    Default: MyGroup
+  AtlasDatabaseName:
+    Type: String
+    Default: TestDatabase
+  AtlasCollectionName:
+    Type: String
+    Default: TestCollection
+Resources:
+  MongoDBEventBridge:
+    Type: AWS::Events::EventBus
+    DependsOn:
+    - MongoDBSetupTrigger
+    Properties:
+      EventSourceName:
+        Fn::GetAtt:
+        - MongoDBSetupTrigger
+        - EventSourceName
+      Name:
+        Fn::GetAtt:
+        - MongoDBSetupTrigger
+        - EventSourceName
+  searchPlayersEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: search_for_players
+      EventBusName:
+        Ref: MongoDBEventBridge
+      EventPattern:
+        account:
+        - Ref: AWS::AccountId
+      State: ENABLED
+      Targets:
+      - Arn:
+          Fn::GetAtt:
+          - matchPlayers
+          - Arn
+        Id: matchPlayers
+  MongoDBSetupGroup:
+    Type: Custom::MongoDBSetupGroup
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - ConfigMongoGroup
+        - Arn
+      orgId:
+        Ref: MongoDBAtlasOrganizationID
+      name: Test_group
+  MongoDBSetupDBIpWhitelist:
+    Type: Custom::MongoDBSetupIpWhitelist
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    - MongoDBSetupGroup
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - ConfigMongoIpWhitelist
+        - Arn
+      groupId:
+        Fn::GetAtt:
+        - MongoDBSetupGroup
+        - id
+      ipAddress: 0.0.0.0/0
+  MongoDBSetupCluster:
+    Type: Custom::MongoDBSetupCluster
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    - MongoDBSetupGroup
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - ConfigMongoCluster
+        - Arn
+      groupId:
+        Fn::GetAtt:
+        - MongoDBSetupGroup
+        - id
+      cluster:
+        autoScalling:
+          compute:
+            enabled: true
+            scaleDownEnabled: true
+            minInstanceSize: M10
+            diskGBEnabled: true
+        diskSizeGB: 10
+        mongoDBMajorVersion: 4.2
+        providerSettings:
+          autoScaling:
+            compute:
+              minInstanceSize: M10
+              maxInstanceSize: M20
+          diskIOPS: 100
+          volumeType: STANDARD
+          encryptEBSVolume: true
+          instanceSizeName: M10
+          providerName: AWS
+          regionName: US_EAST_1
+  MongoDBSetupStitch:
+    Type: Custom::MongoDBSetupStitch
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    - MongoDBSetupCluster
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - ConfigMongoStitch
+        - Arn
+      groupId:
+        Fn::GetAtt:
+        - MongoDBSetupGroup
+        - id
+      name: TestStitchApp
+      deployment_model: GLOBAL
+      region: us-east-1
+  MongoDBSetupService:
+    Type: Custom::MongoDBSetupService
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - ConfigMongoService
+        - Arn
+      groupId:
+        Fn::GetAtt:
+        - MongoDBSetupGroup
+        - id
+      appId:
+        Fn::GetAtt:
+        - MongoDBSetupStitch
+        - _id
+      name: MyService1
+      type: mongodb-atlas
+      config:
+        clusterName:
+          Fn::GetAtt:
+          - MongoDBSetupCluster
+          - name
+  MongoDBSetupDBUser:
+    Type: Custom::MongoDBSetupDatabaseUser
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    - MongoDBSetupCluster
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - ConfigMongoDatabaseUser
+        - Arn
+      groupId:
+        Fn::GetAtt:
+        - MongoDBSetupGroup
+        - id
+      databaseName:
+        Ref: AtlasDatabaseName
+      password: changeme123
+      username: david
+      roles:
+      - databaseName:
+          Ref: AtlasDatabaseName
+        collectionName:
+          Ref: AtlasCollectionName
+        roleName: readWrite
+  MongoDBSetupCollection:
+    Type: Custom::MongoDBSetupCollection
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - ConfigMongoCollection
+        - Arn
+      groupId:
+        Fn::GetAtt:
+        - MongoDBSetupGroup
+        - id
+      database:
+        Ref: AtlasDatabaseName
+      collection:
+        Ref: AtlasCollectionName
+      url:
+        Fn::Join:
+        - //
+        - - Fn::Select:
+            - 0
+            - Fn::Split:
+              - //
+              - Fn::GetAtt:
+                - MongoDBSetupCluster
+                - srvAddress
+          - Fn::Join:
+            - ':'
+            - - Fn::GetAtt:
+                - MongoDBSetupDBUser
+                - username
+              - Fn::GetAtt:
+                - MongoDBSetupDBUser
+                - password
+          - Fn::Select:
+            - 1
+            - Fn::Split:
+              - //
+              - Fn::GetAtt:
+                - MongoDBSetupCluster
+                - srvAddress
+  MongoDBSetupTrigger:
+    Type: Custom::MongoDBSetupTrigger
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - ConfigMongoTrigger
+        - Arn
+      groupId:
+        Fn::GetAtt:
+        - MongoDBSetupGroup
+        - id
+      appId:
+        Fn::GetAtt:
+        - MongoDBSetupStitch
+        - _id
+      trigger:
+        type: DATABASE
+        config:
+          operation_types:
+          - INSERT
+          - UPDATE
+          - DELETE
+          - REPLACE
+          database:
+            Ref: AtlasDatabaseName
+          collection:
+            Fn::GetAtt:
+            - MongoDBSetupCollection
+            - name
+          service_id:
+            Fn::GetAtt:
+            - MongoDBSetupService
+            - _id
+          match: {}
+          full_document: true
+        event_processors:
+          AWS_EVENTBRIDGE:
+            config:
+              account_id:
+                Ref: AWS::AccountId
+              region:
+                Ref: AWS::Region
+  PendingRequestsQue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 86400
+      QueueName: PendingRequests
+      VisibilityTimeout: 300
+  PendingGamesQue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 86400
+      QueueName: PendingGames
+      VisibilityTimeout: 300
+  matchPlayers:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    - MongoDBSetupDBUser
+    - MongoDBSetupCluster
+    Properties:
+      FunctionName: matchPlayers
+      Handler: matchPlayers.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/c0cfe8fabc449784f8a52de07b114d3c
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          API_GATEWAY_REGION: us-east-1
+          DYNAMODB_REQUESTS_TABLE: requests
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test
+          PLAYERS_DISTANCE: 100
+          SQS_PENDINGREQUESTS_URL:
+            Ref: PendingRequestsQue
+          WEBSOCKET_API_ENDPOINT:
+            Fn::Join:
+            - //
+            - - Fn::Select:
+                - 0
+                - Fn::Split:
+                  - //
+                  - Fn::GetAtt:
+                    - MongoDBSetupCluster
+                    - srvAddress
+              - Fn::Join:
+                - ':'
+                - - Fn::GetAtt:
+                    - MongoDBSetupDBUser
+                    - username
+                  - Fn::GetAtt:
+                    - MongoDBSetupDBUser
+                    - password
+              - Fn::Select:
+                - 1
+                - Fn::Split:
+                  - //
+                  - Fn::GetAtt:
+                    - MongoDBSetupCluster
+                    - srvAddress
+  ConfigMongoGroup:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoGroup
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/6e75d76d4e4923f1aecd9c65e7ed00f4
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 360
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - ConfigMongoDatabaseRole
+        - Arn
+      Environment:
+        Variables:
+          API_KEY:
+            Ref: MongoDbApiKey
+          SECRET_KEY:
+            Ref: MongoDbSecretKey
+  ConfigMongoCluster:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoDBCluster
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/5aeb24b1d0c1a51587f4f84bad03400b
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 900
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - ConfigMongoClusterRole
+        - Arn
+      Environment:
+        Variables:
+          API_KEY:
+            Ref: MongoDbApiKey
+          SECRET_KEY:
+            Ref: MongoDbSecretKey
+  ConfigMongoStitch:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoStitch
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/dcf1084d1a955fffb2c6a7f973287cb7
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 30
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - ConfigMongoDatabaseRole
+        - Arn
+      Environment:
+        Variables:
+          API_KEY:
+            Ref: MongoDbApiKey
+          SECRET_KEY:
+            Ref: MongoDbSecretKey
+  ConfigMongoService:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoService
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/d54720ef371991b42ffd41f07d4a8905
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 30
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - ConfigMongoDatabaseRole
+        - Arn
+      Environment:
+        Variables:
+          API_KEY:
+            Ref: MongoDbApiKey
+          SECRET_KEY:
+            Ref: MongoDbSecretKey
+  ConfigMongoDatabaseUser:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoDatabaseUser
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/162c705034e53c701064ff2968c3b5e4
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 30
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - ConfigMongoDatabaseRole
+        - Arn
+      Environment:
+        Variables:
+          API_KEY:
+            Ref: MongoDbApiKey
+          SECRET_KEY:
+            Ref: MongoDbSecretKey
+  ConfigMongoIpWhitelist:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoIpWhitelist
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/0c52220a8128f8dd0f5d36558eeb3baf
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 30
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - ConfigMongoDatabaseRole
+        - Arn
+      Environment:
+        Variables:
+          API_KEY:
+            Ref: MongoDbApiKey
+          SECRET_KEY:
+            Ref: MongoDbSecretKey
+  ConfigMongoCollection:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoCollection
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/8e9f176a84fe18dde3abb939e824ed4a
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 60
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - ConfigMongoDatabaseRole
+        - Arn
+      Environment:
+        Variables:
+          API_KEY:
+            Ref: MongoDbApiKey
+          SECRET_KEY:
+            Ref: MongoDbSecretKey
+  ConfigMongoTrigger:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoTrigger
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/adc3bd485a456284ee9643a59babf94d
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 30
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - ConfigMongoDatabaseRole
+        - Arn
+      Environment:
+        Variables:
+          API_KEY:
+            Ref: MongoDbApiKey
+          SECRET_KEY:
+            Ref: MongoDbSecretKey
+  serverlessLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: serverlessLayer
+      Description: Layer description
+      ContentUri: s3://ali-su-artifacts/0a5c0de4ea083f97792bf268494bb4a7
+      CompatibleRuntimes:
+      - nodejs12.x
+      - nodejs8.10
+      LicenseInfo: Available under the MIT-0 license.
+      RetentionPolicy: Retain
+  MongoDBEventRulePermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Fn::GetAtt:
+        - matchPlayers
+        - Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - searchPlayersEventRule
+        - Arn
+  MatchPlayersRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: LambdaBasicExecutionPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+      Path: /
+  ConfigMongoClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: LambdaBasicExecutionPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+      - PolicyName: InvokeSQS
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+            Resource: '*'
+  ConfigMongoDatabaseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: LambdaBasicExecutionPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+  FetchLambdaCodeFromS3:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: FetchLambdaCodeFromS3
+      Roles:
+      - Ref: ConfigMongoClusterRole
+      - Ref: ConfigMongoDatabaseRole
+      - Ref: MatchPlayersRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          - s3:GetObjectACL
+          Resource: arn:aws:s3:::ali-serverless-architecture/*

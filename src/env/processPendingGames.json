@@ -1,0 +1,6 @@
+{
+    "Variables": {
+        "DYNAMODB_GAMES_TABLE": "games",
+        "DYNAMODB_GAMES_TABLE_REGION": "us-east-2"
+    }
+}

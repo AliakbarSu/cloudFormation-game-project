@@ -1,0 +1,36 @@
+apiKey: gajriicw
+secretKey: 8db26a78-a7ca-4dce-a7c7-d3b0f7669169
+groupID: 5e83305e4566db257e12618b
+trigger:
+  config:
+
+stitchApp:
+  config:
+    deploymentModel: LOCAL
+    region: 'us-east-1'
+cluster:
+  config:
+    autoScalling:
+      compute:
+        enabled: true
+        scaleDownEnabled: true
+        minInstanceSize: M10
+        diskGBEnabled: true
+    # backupEnabled: false #Deprecated
+    diskSizeGB: 10
+    # encryptionAtRestProvider: AWS
+    name: "TEST_CLUSTER"
+    mongoDBMajorVersion: 4.2
+    # pitEnabled: true # Point In Time recovery and backup
+    # providerBackupEnabled: true
+    providerSettings:
+      autoScaling:
+        compute:
+          minInstanceSize: M10
+          maxInstanceSize: M20
+      diskIOPS: 100
+      volumeType: STANDARD
+      encryptEBSVolume: true
+      instanceSizeName: M10
+      providerName: AWS
+      regionName: US_EAST_1

@@ -1,0 +1,36 @@
+{
+    "RequestType" : "Create",
+    "RequestId" : "unique id for this create request",
+    "ResponseURL" : "pre-signed-url-for-create-response",
+    "ResourceType" : "Custom::MyCustomResourceType",
+    "LogicalResourceId" : "name of resource in template",
+    "StackId" : "arn:aws:cloudformation:us-east-2:namespace:stack/stack-name/guid",
+    "ResourceProperties" : {
+       "groupId": "5e89c640043542192e593202",
+        "autoScalling": {
+          "compute": {
+            "enabled": true,
+            "scaleDownEnabled": true,
+            "minInstanceSize": "M10",
+            "diskGBEnabled": true
+          }
+        },
+        "diskSizeGB": 10,
+        "name": "TestCLUSTERa",
+        "mongoDBMajorVersion": 4.2,
+        "providerSettings": {
+          "autoScaling": {
+            "compute": {
+              "minInstanceSize": "M10",
+              "maxInstanceSize": "M20"
+            }
+          },
+          "diskIOPS": 100,
+          "volumeType": "STANDARD",
+          "encryptEBSVolume": true,
+          "instanceSizeName": "M10",
+          "providerName": "AWS",
+          "regionName": "US_EAST_1"
+        }
+    }
+ }        

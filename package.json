@@ -1,0 +1,40 @@
+{
+  "name": "aws_serverless",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:unit": "DEV=true nyc --reporter=text mocha --recursive './test/unit/**/*.js'",
+    "test:int": "DEV=true nyc --reporter=text mocha --recursive './test/int/**/*.js'",
+    "update-layer": "sudo ./update-layer.sh",
+    "update-function": "./update-function.sh",
+    "update-function-layer": "./update-function-layer.sh",
+    "update-function-env": "./update-function-env.sh",
+    "deploy": "./sam-deploy.sh",
+    "cnm": "cp -r node_modules ./src/opt/nodejs",
+    "test-function": "./test-function.sh"
+  },
+  "author": "ali",
+  "license": "ISC",
+  "dependencies": {
+    "amazon-cognito-identity-js": "^3.2.6",
+    "aws-sdk": "^2.639.0",
+    "axios": "^0.19.2",
+    "axios-digest": "^0.1.1",
+    "dotenv": "^8.2.0",
+    "mongodb": "^3.5.5",
+    "mongoose": "^5.9.4",
+    "node-fetch": "^2.6.0",
+    "node-jose": "^1.1.3",
+    "uuid": "^7.0.2"
+  },
+  "devDependencies": {
+    "aws-sdk-mock": "^5.1.0",
+    "axios-mock-adapter": "^1.18.1",
+    "chai": "^4.2.0",
+    "mocha": "^7.1.1",
+    "mock-mongoose": "^8.0.0",
+    "nyc": "^15.0.0",
+    "sinon": "^9.0.1"
+  }
+}
