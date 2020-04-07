@@ -15,7 +15,9 @@ const headers = {
    
 
 exports.createService = async (event) => {
+    console.log("Creating service.")
     if(!event || !event.groupId || !event.appId) {
+        console.log("The following arguments was invalid: ", event)
         return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
     }
 
@@ -27,12 +29,13 @@ exports.createService = async (event) => {
     headers.Authorization = 'Bearer ' + authToken
 
     const params = UTIL.removeUnrelatedProperties(event)
-    console.log(params)
     return axios.default.post(url, params, {headers}).then(res => res.data)
 }
 
 exports.updateService = async (event) => {
+    console.log("Updating service.")
     if(!event || !event.groupId || !event.appId || !event.PhysicalResourceId) {
+        console.log("The following arguments was invalid: ", event)
         return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
     }
 
@@ -45,12 +48,15 @@ exports.updateService = async (event) => {
     headers.Authorization = 'Bearer ' + authToken
 
     const params = UTIL.removeUnrelatedProperties(event)
+    params.version = 1
     return axios.default.patch(url, params, {headers}).then(res => res.data)
 }
 
 
 exports.deleteService = async (event) => {
+    console.log("Deleting service.")
     if(!event || !event.groupId || !event.appId || !event.PhysicalResourceId) {
+        console.log("The following arguments was invalid: ", event)
         return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
     }
 
@@ -62,5 +68,7 @@ exports.deleteService = async (event) => {
     const authToken = await SA.authenticate(process.env.API_KEY, process.env.SECRET_KEY)
     headers.Authorization = 'Bearer ' + authToken
 
-    return axios.default.delete(url, {headers}).then(res => res.data)
+    const service = await axios.default.get(url, {headers}).then(res => res.data)
+    await axios.default.delete(url, {headers})
+    return service
 }

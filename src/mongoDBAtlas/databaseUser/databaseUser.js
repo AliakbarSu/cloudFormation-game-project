@@ -10,7 +10,9 @@ const { removeUnrelatedProperties } = require(resourcesPath + 'utils/removeUnrel
    
 
 exports.createDatabaseUser = async (event) => {
+    console.log("Creating database user.")
     if(!event || !event.groupId) {
+        console.log("The following arguments was invalid: ", event)
         return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
     }
 
@@ -18,31 +20,43 @@ exports.createDatabaseUser = async (event) => {
     const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/databaseUsers`
     
     const params = removeUnrelatedProperties(event)
+    console.log(params)
     return axiosDigest.post(url, params).then(res => ({...res.data, password: params.password}))
 }
 
 exports.updateDatabaseUser = async (event) => {
+    console.log("Updating database user.")
     if(!event || !event.groupId || !event.PhysicalResourceId) {
+        console.log("The following arguments was invalid: ", event)
         return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
     }
 
     const groupId = event.groupId
     const username = event.PhysicalResourceId
-    const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/databaseUsers/${username}`
+    const databaseName = event.databaseName
+    let url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/databaseUsers/${databaseName}/${username}`
     
     const params = removeUnrelatedProperties(event)
+    if(username !== event.username) {
+        url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/databaseUsers`
+        return axiosDigest.post(url, params).then(res => ({...res.data, password: params.password}))
+    }
     delete params.username
     return axiosDigest.patch(url, params).then(res => ({...res.data, password: params.password}))
 }
 
-exports.deleteDatabaseUser = (event) => {
-    if(!event || !event.groupId || !event.PhysicalResourceId) {
+exports.deleteDatabaseUser = async (event) => {
+    console.log("Deleting database user.")
+    if(!event || !event.groupId || !event.PhysicalResourceId || !event.databaseName) {
+        console.log("The following arguments was invalid: ", event)
         return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
     }
 
     const groupId = event.groupId
     const username = event.PhysicalResourceId
-    const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/databaseUsers/${username}`
+    const databaseName = event.databaseName
+    const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/databaseUsers/${databaseName}/${username}`
     
-    return axiosDigest.delete(url).then(res => ({...res.data, password: event.password}))
+    await axiosDigest.delete(url)
+    return null
 }

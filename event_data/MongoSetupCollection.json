@@ -4,10 +4,12 @@
     "ResponseURL" : "pre-signed-url-for-create-response",
     "ResourceType" : "Custom::MyCustomResourceType",
     "LogicalResourceId" : "name of resource in template",
+    "PhysicalResourceId": "players",
     "StackId" : "arn:aws:cloudformation:us-east-2:namespace:stack/stack-name/guid",
     "ResourceProperties" : {
         "database": "test",
         "collection": "players",
-        "url": "mongodb+srv://david101:changeme123@testclustera.ooflg.mongodb.net"
+        "url": "mongodb+srv://david1aafsf:changeme123@testcluster.krvgh.mongodb.net/test?retryWrites=true&w=majority"
+        
     }
  }        

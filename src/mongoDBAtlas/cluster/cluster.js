@@ -26,12 +26,13 @@ exports.createCluster = (event) => {
     }
     const groupId = event.groupId
     const config = removeUnrelatedProperties(event)
+    console.log(config)
     const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/clusters`
     return axiosDigest.post(url, config).then(res => res.data)
 }
 
 exports.updateCluster = (event) => {
-  if(!event || !event.groupId) {
+  if(!event || !event.groupId || !event.PhysicalResourceId) {
     return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
   }
   const clusterName = event.PhysicalResourceId
@@ -42,7 +43,7 @@ exports.updateCluster = (event) => {
 }
 
 exports.deleteCluster = (event) => {
-  if(!event || !event.groupId) {
+  if(!event || !event.groupId || !event.PhysicalResourceId) {
     return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
   }
   const clusterName = event.PhysicalResourceId

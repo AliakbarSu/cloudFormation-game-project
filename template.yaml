@@ -5,10 +5,10 @@ Description: A Node.js web service deployed to AWS Lambda.
 Parameters:
   MongoDbApiKey:
     Type: String
-    Default: gajriicw
+    Default: kmdwueir
   MongoDbSecretKey:
     Type: String
-    Default: 8db26a78-a7ca-4dce-a7c7-d3b0f7669169
+    Default: 755ed978-c944-4627-b210-6ae1ecb71424
   MongoDBAtlasOrganizationID:
     Type: String
     Default: 5c7b7335cf09a27596230eea
@@ -75,26 +75,26 @@ Resources:
     Properties:
       ServiceToken: !GetAtt ConfigMongoCluster.Arn
       groupId: !GetAtt MongoDBSetupGroup.id
-      cluster: 
-        autoScalling:
+      name: TestCluster
+      autoScalling:
+        compute:
+          enabled: true
+          scaleDownEnabled: true
+          minInstanceSize: M10
+          diskGBEnabled: true
+      diskSizeGB: 10
+      mongoDBMajorVersion: 4.2
+      providerSettings:
+        autoScaling:
           compute:
-            enabled: true
-            scaleDownEnabled: true
             minInstanceSize: M10
-            diskGBEnabled: true
-        diskSizeGB: 10
-        mongoDBMajorVersion: 4.2
-        providerSettings:
-          autoScaling:
-            compute:
-              minInstanceSize: M10
-              maxInstanceSize: M20
-          diskIOPS: 100
-          volumeType: STANDARD
-          encryptEBSVolume: true
-          instanceSizeName: M10
-          providerName: AWS
-          regionName: "US_EAST_1"
+            maxInstanceSize: M20
+        diskIOPS: 100
+        volumeType: STANDARD
+        encryptEBSVolume: true
+        instanceSizeName: M10
+        providerName: AWS
+        regionName: "US_EAST_1"
   # STITCH APP
   MongoDBSetupStitch:
     Type: Custom::MongoDBSetupStitch
@@ -105,8 +105,8 @@ Resources:
       ServiceToken: !GetAtt ConfigMongoStitch.Arn
       groupId: !GetAtt MongoDBSetupGroup.id
       name: TestStitchApp
-      deployment_model: GLOBAL
-      region: us-east-1
+      deployment_model: LOCAL
+      region: "us-east-1"
   # SERVICE
   MongoDBSetupService:
     Type: Custom::MongoDBSetupService
@@ -125,22 +125,24 @@ Resources:
     Type: Custom::MongoDBSetupDatabaseUser
     DependsOn:
       - FetchLambdaCodeFromS3
-      - MongoDBSetupCluster
+      - MongoDBSetupGroup
     Properties:
       ServiceToken: !GetAtt ConfigMongoDatabaseUser.Arn
       groupId: !GetAtt MongoDBSetupGroup.id
-      databaseName: !Ref AtlasDatabaseName
+      databaseName: admin
       password: changeme123
       username: david
       roles: 
-        - databaseName: !Ref AtlasDatabaseName
-          collectionName: !Ref AtlasCollectionName
-          roleName: readWrite
+        - databaseName: admin
+          roleName: atlasAdmin
   # COLLECTION
   MongoDBSetupCollection:
     Type: Custom::MongoDBSetupCollection
     DependsOn:
       - FetchLambdaCodeFromS3
+      - MongoDBSetupDBUser
+      - MongoDBSetupCluster
+      - MongoDBSetupDBIpWhitelist
     Properties:
       ServiceToken: !GetAtt ConfigMongoCollection.Arn
       groupId: !GetAtt MongoDBSetupGroup.id
@@ -150,37 +152,44 @@ Resources:
               - "//"
               - - !Select [ 0, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
                 - !Join
-                    - ":"
-                    - - !GetAtt MongoDBSetupDBUser.username
-                      - !GetAtt MongoDBSetupDBUser.password 
-                - !Select [ 1, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
+                    - "@"
+                    - - !Join
+                        - ":"
+                        - - !GetAtt MongoDBSetupDBUser.username
+                          - !GetAtt MongoDBSetupDBUser.password 
+                      - !Select [ 1, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
   # TRIGGER
   MongoDBSetupTrigger:
     Type: Custom::MongoDBSetupTrigger
     DependsOn:
       - FetchLambdaCodeFromS3
+      - MongoDBSetupCollection
+      - MongoDBSetupService
     Properties:
-      ServiceToken: !GetAtt ConfigMongoTrigger.Arn
-      groupId: !GetAtt MongoDBSetupGroup.id
-      appId: !GetAtt MongoDBSetupStitch._id
-      trigger:
-        type: DATABASE
-        config:
-          operation_types:
-            - INSERT
-            - UPDATE
-            - DELETE
-            - REPLACE
-          database: !Ref AtlasDatabaseName
-          collection: !GetAtt MongoDBSetupCollection.name
-          service_id: !GetAtt MongoDBSetupService._id
-          match: {}
-          full_document: true
-        event_processors:
-          AWS_EVENTBRIDGE:
-            config:
-              account_id: !Ref "AWS::AccountId"
-              region: !Ref "AWS::Region"
+      ServiceToken: !GetAtt "ConfigMongoTrigger.Arn"
+      groupId: !GetAtt "MongoDBSetupGroup.id"
+      appId: !GetAtt "MongoDBSetupStitch._id"
+      name: TestTrigger
+      type: DATABASE
+      event_processors:
+        AWS_EVENTBRIDGE:
+          type: AWS_EVENTBRIDGE
+          config:
+            account_id: !Ref "AWS::AccountId"
+            region: !Ref "AWS::Region"
+      config:
+        operation_types:
+          - INSERT
+          - UPDATE
+          - DELETE
+          - REPLACE
+        full_document: true
+        match: {}
+        collection: TestCollection
+        database: !Ref AtlasDatabaseName
+        collection: !GetAtt "MongoDBSetupCollection.name"
+        service_id: !GetAtt "MongoDBSetupService._id"
+          
   #######################
   # SQS RESOURCES
   #######################
@@ -225,17 +234,22 @@ Resources:
         Variables:
           API_GATEWAY_REGION: us-east-1
           DYNAMODB_REQUESTS_TABLE: requests
-          MONGO_DB_URI: 'mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test'
-          PLAYERS_DISTANCE: 100
-          SQS_PENDINGREQUESTS_URL: !Ref PendingRequestsQue
-          WEBSOCKET_API_ENDPOINT: !Join
-                                    - "//"
-                                    - - !Select [ 0, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
-                                      - !Join
+          MONGO_DB_URI: !Join
+                          - "/"
+                          - - !Join
+                                - "//"
+                                - - !Select [ 0, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
+                                  - !Join
+                                      - "@"
+                                      - - !Join
                                           - ":"
                                           - - !GetAtt MongoDBSetupDBUser.username
                                             - !GetAtt MongoDBSetupDBUser.password 
-                                      - !Select [ 1, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
+                                        - !Select [ 1, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
+                            - !Ref AtlasDatabaseName
+          PLAYERS_DISTANCE: 100
+          SQS_PENDINGREQUESTS_URL: !Ref PendingRequestsQue
+          WEBSOCKET_API_ENDPOINT: "test"
       # Events:
       #   searchPlayersEventRule:
       #     Type: EventBridgeRule
@@ -294,7 +308,7 @@ Resources:
       CodeUri: ./src/mongoDBAtlas/stitch
       Layers:
         - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 120
       MemorySize: 128
       Role: !GetAtt ConfigMongoDatabaseRole.Arn
       Environment:
@@ -313,7 +327,7 @@ Resources:
       CodeUri: ./src/mongoDBAtlas/service
       Layers:
         - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 360
       MemorySize: 128
       Role: !GetAtt ConfigMongoDatabaseRole.Arn
       Environment:
@@ -332,7 +346,7 @@ Resources:
       CodeUri: ./src/mongoDBAtlas/databaseUser
       Layers:
         - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 360
       MemorySize: 128
       Role: !GetAtt ConfigMongoDatabaseRole.Arn
       Environment:
@@ -351,7 +365,7 @@ Resources:
       CodeUri: ./src/mongoDBAtlas/ipWhitelist
       Layers:
         - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 360
       MemorySize: 128
       Role: !GetAtt ConfigMongoDatabaseRole.Arn
       Environment:
@@ -370,7 +384,7 @@ Resources:
       CodeUri: ./src/mongoDBAtlas/collection
       Layers:
         - Ref: serverlessLayer
-      Timeout: 60
+      Timeout: 360
       MemorySize: 128
       Role: !GetAtt ConfigMongoDatabaseRole.Arn
       Environment:
@@ -389,7 +403,7 @@ Resources:
       CodeUri: ./src/mongoDBAtlas/trigger
       Layers:
         - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 120
       MemorySize: 128
       Role: !GetAtt ConfigMongoDatabaseRole.Arn
       Environment:

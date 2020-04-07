@@ -21,6 +21,7 @@ exports.handler = async (event, context) => {
         const timeoutValue = context.getRemainingTimeInMillis()
         TO.timeout(event, context, timeoutValue)
 
+        console.log("Received Event: " + event.RequestType)
         switch(event.RequestType.toUpperCase()) {
             case "CREATE":
               responseData = await SERVICE.createService(event)
@@ -28,16 +29,13 @@ exports.handler = async (event, context) => {
               return SR.sendResponse(eventCopy, context, responseStatus, responseData)
             case "UPDATE":
               responseData = await SERVICE.updateService(event)
-              eventCopy = {...event, PhysicalResourceId: responseData._id}
-              return SR.sendResponse(eventCopy, context, responseStatus, responseData)
+              return SR.sendResponse(event, context, responseStatus, responseData)
             case "DELETE":
               responseData = await SERVICE.deleteService(event)
-              eventCopy = {...event, PhysicalResourceId: responseData._id}
-              return SR.sendResponse(eventCopy, context, responseStatus, responseData)
+              return SR.sendResponse(event, context, responseStatus, responseData)
             default:
               console.log("Invalid RequestType", event.RequestType)
-              responseStatus = "FAILED"
-              return SR.sendResponse(event, context, responseStatus, responseData)
+              return SR.sendResponse(event, context, "FAILED", responseData)
         }
     }catch(err) {
         console.log(`Failed to perform ${event.RequestType} operation ${err}`)

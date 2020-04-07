@@ -6,6 +6,7 @@ exports.removeUnrelatedProperties = (event) => {
     delete config.ResourceType
     delete config.LogicalResourceId
     delete config.PhysicalResourceId
+    delete config.ServiceToken
     // Review delete config.groupId
     delete config.groupId
     delete config.appId

@@ -63,14 +63,6 @@ describe("Layer::SendResponse", function() {
             expect(axiosMock.history.put.length).to.equal(0)
             expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
         }
-
-        try {
-            await sendResponse(event, context, responseStatus, null)
-            throw new Error("FALSE_PASS")
-        }catch(err) {
-            expect(axiosMock.history.put.length).to.equal(0)
-            expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-        }
     })
 
     it("Should make a put request and pass the correct params", async () => {
@@ -78,7 +70,7 @@ describe("Layer::SendResponse", function() {
         expect(axiosMock.history.put.length).to.equal(1)
         expect(JSON.parse(axiosMock.history.put[0].data).Status).to.equal(responseStatus)
         expect(JSON.parse(axiosMock.history.put[0].data).LogicalResourceId).to.equal(event.LogicalResourceId)
-        expect(JSON.parse(axiosMock.history.put[0].data).Data).to.deep.equal(responseData)
+        expect(JSON.parse(axiosMock.history.put[0].data).Data).to.deep.equal({...responseData, placeholder: 'Value'})
     })
 
     it("Should make http request to correct endpoint", async () => {

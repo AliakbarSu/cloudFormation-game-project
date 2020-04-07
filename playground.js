@@ -1,25 +1,18 @@
-// set up a command function
-var getDbStats = function(db, callback) {
-    db.command({'use': "testDatabase"},
-    function(err, results) {
-      console.log(results);
-      callback();
-  }
-);
-};
+let resourcesPath = "../../../src/opt/nodejs/";
+if(!process.env['DEV']) {
+    resourcesPath = "/opt/nodejs/"
+}
 
-// use the function
-var MongoClient = require('mongodb').MongoClient
-, assert = require('assert');
 
-// Connection URL
-var url = 'mongodb+srv://admin:123456khan@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority';
-// Use connect method to connect to the server
-MongoClient.connect(url, function(err, client) {
-    assert.equal(null, err);
-    let database = client.db('databaseName');
-    console.log("Connected correctly to server");
-    getDbStats(database, function() {
-        client.close();
-    });
-});
+const AxiosDigest = require('axios-digest').AxiosDigest
+const axiosDigest = new AxiosDigest(process.env.API_KEY, process.env.SECRET_KEY)
+const { removeUnrelatedProperties } = require(resourcesPath + 'utils/removeUnrelatedProperties')
+
+exports.createGroup = (event) => {
+    if(!event || !event.orgId || !event.name) {
+        return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
+    }
+    const url = "https://cloud.mongodb.com/api/atlas/v1.0/groups"
+    const params = removeUnrelatedProperties(event)
+    return axiosDigest.post(url, params).then(res => res.data)
+}

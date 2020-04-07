@@ -79,7 +79,7 @@ describe("IpWhitelist::ipWhitelist", function() {
     
         it("Should return the created ip object", async () => {
             const createdIp = await createIp(event)
-            expect(createdIp).to.deep.equal(ip)
+            expect(createdIp).to.deep.equal({ipAddress: ip.ipAddress})
         })
     })
 
@@ -118,7 +118,7 @@ describe("IpWhitelist::ipWhitelist", function() {
     
         it("Should return the update ip object", async () => {
             const createdIp = await createIp(event)
-            expect(createdIp).to.deep.equal(ip)
+            expect(createdIp).to.deep.equal({ipAddress: ip.ipAddress})
         })
     })
 
@@ -163,7 +163,7 @@ describe("IpWhitelist::ipWhitelist", function() {
     
         it("Should return the deleted ip object", async () => {
             const createdIp = await deleteIp(event)
-            expect(createdIp).to.deep.equal(ip)
+            expect(createdIp).to.deep.equal({ipAddress: ip.ipAddress})
         })
     })
 })

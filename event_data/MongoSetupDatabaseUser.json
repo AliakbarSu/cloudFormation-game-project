@@ -1,19 +1,19 @@
 {
-    "RequestType" : "Create",
+    "RequestType" : "Delete",
     "RequestId" : "unique id for this create request",
     "ResponseURL" : "pre-signed-url-for-create-response",
     "ResourceType" : "Custom::MyCustomResourceType",
     "LogicalResourceId" : "name of resource in template",
+    "PhysicalResourceId": "david101",
     "StackId" : "arn:aws:cloudformation:us-east-2:namespace:stack/stack-name/guid",
     "ResourceProperties" : {
-        "groupId": "5e89c640043542192e593202",
+        "groupId": "5e8b6093a35c12472edc0023",
         "databaseName": "admin",
         "password": "changeme123",
-        "username": "david101",
+        "username": "david102",
         "roles": [{
-            "databaseName": "test",
-            "collectionName": "players",
-            "roleName": "readWrite"
+            "databaseName": "admin",
+            "roleName": "atlasAdmin"
         }]
     }
  }        

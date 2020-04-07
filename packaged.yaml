@@ -4,10 +4,10 @@ Description: A Node.js web service deployed to AWS Lambda.
 Parameters:
   MongoDbApiKey:
     Type: String
-    Default: gajriicw
+    Default: kmdwueir
   MongoDbSecretKey:
     Type: String
-    Default: 8db26a78-a7ca-4dce-a7c7-d3b0f7669169
+    Default: 755ed978-c944-4627-b210-6ae1ecb71424
   MongoDBAtlasOrganizationID:
     Type: String
     Default: 5c7b7335cf09a27596230eea
@@ -91,26 +91,26 @@ Resources:
         Fn::GetAtt:
         - MongoDBSetupGroup
         - id
-      cluster:
-        autoScalling:
+      name: TestCluster
+      autoScalling:
+        compute:
+          enabled: true
+          scaleDownEnabled: true
+          minInstanceSize: M10
+          diskGBEnabled: true
+      diskSizeGB: 10
+      mongoDBMajorVersion: 4.2
+      providerSettings:
+        autoScaling:
           compute:
-            enabled: true
-            scaleDownEnabled: true
             minInstanceSize: M10
-            diskGBEnabled: true
-        diskSizeGB: 10
-        mongoDBMajorVersion: 4.2
-        providerSettings:
-          autoScaling:
-            compute:
-              minInstanceSize: M10
-              maxInstanceSize: M20
-          diskIOPS: 100
-          volumeType: STANDARD
-          encryptEBSVolume: true
-          instanceSizeName: M10
-          providerName: AWS
-          regionName: US_EAST_1
+            maxInstanceSize: M20
+        diskIOPS: 100
+        volumeType: STANDARD
+        encryptEBSVolume: true
+        instanceSizeName: M10
+        providerName: AWS
+        regionName: US_EAST_1
   MongoDBSetupStitch:
     Type: Custom::MongoDBSetupStitch
     DependsOn:
@@ -126,7 +126,7 @@ Resources:
         - MongoDBSetupGroup
         - id
       name: TestStitchApp
-      deployment_model: GLOBAL
+      deployment_model: LOCAL
       region: us-east-1
   MongoDBSetupService:
     Type: Custom::MongoDBSetupService
@@ -156,7 +156,7 @@ Resources:
     Type: Custom::MongoDBSetupDatabaseUser
     DependsOn:
     - FetchLambdaCodeFromS3
-    - MongoDBSetupCluster
+    - MongoDBSetupGroup
     Properties:
       ServiceToken:
         Fn::GetAtt:
@@ -166,20 +166,19 @@ Resources:
         Fn::GetAtt:
         - MongoDBSetupGroup
         - id
-      databaseName:
-        Ref: AtlasDatabaseName
+      databaseName: admin
       password: changeme123
       username: david
       roles:
-      - databaseName:
-          Ref: AtlasDatabaseName
-        collectionName:
-          Ref: AtlasCollectionName
-        roleName: readWrite
+      - databaseName: admin
+        roleName: atlasAdmin
   MongoDBSetupCollection:
     Type: Custom::MongoDBSetupCollection
     DependsOn:
     - FetchLambdaCodeFromS3
+    - MongoDBSetupDBUser
+    - MongoDBSetupCluster
+    - MongoDBSetupDBIpWhitelist
     Properties:
       ServiceToken:
         Fn::GetAtt:
@@ -204,24 +203,28 @@ Resources:
                 - MongoDBSetupCluster
                 - srvAddress
           - Fn::Join:
-            - ':'
-            - - Fn::GetAtt:
-                - MongoDBSetupDBUser
-                - username
-              - Fn::GetAtt:
-                - MongoDBSetupDBUser
-                - password
-          - Fn::Select:
-            - 1
-            - Fn::Split:
-              - //
-              - Fn::GetAtt:
-                - MongoDBSetupCluster
-                - srvAddress
+            - '@'
+            - - Fn::Join:
+                - ':'
+                - - Fn::GetAtt:
+                    - MongoDBSetupDBUser
+                    - username
+                  - Fn::GetAtt:
+                    - MongoDBSetupDBUser
+                    - password
+              - Fn::Select:
+                - 1
+                - Fn::Split:
+                  - //
+                  - Fn::GetAtt:
+                    - MongoDBSetupCluster
+                    - srvAddress
   MongoDBSetupTrigger:
     Type: Custom::MongoDBSetupTrigger
     DependsOn:
     - FetchLambdaCodeFromS3
+    - MongoDBSetupCollection
+    - MongoDBSetupService
     Properties:
       ServiceToken:
         Fn::GetAtt:
@@ -235,33 +238,34 @@ Resources:
         Fn::GetAtt:
         - MongoDBSetupStitch
         - _id
-      trigger:
-        type: DATABASE
-        config:
-          operation_types:
-          - INSERT
-          - UPDATE
-          - DELETE
-          - REPLACE
-          database:
-            Ref: AtlasDatabaseName
-          collection:
-            Fn::GetAtt:
-            - MongoDBSetupCollection
-            - name
-          service_id:
-            Fn::GetAtt:
-            - MongoDBSetupService
-            - _id
-          match: {}
-          full_document: true
-        event_processors:
-          AWS_EVENTBRIDGE:
-            config:
-              account_id:
-                Ref: AWS::AccountId
-              region:
-                Ref: AWS::Region
+      name: TestTrigger
+      type: DATABASE
+      event_processors:
+        AWS_EVENTBRIDGE:
+          type: AWS_EVENTBRIDGE
+          config:
+            account_id:
+              Ref: AWS::AccountId
+            region:
+              Ref: AWS::Region
+      config:
+        operation_types:
+        - INSERT
+        - UPDATE
+        - DELETE
+        - REPLACE
+        full_document: true
+        match: {}
+        collection:
+          Fn::GetAtt:
+          - MongoDBSetupCollection
+          - name
+        database:
+          Ref: AtlasDatabaseName
+        service_id:
+          Fn::GetAtt:
+          - MongoDBSetupService
+          - _id
   PendingRequestsQue:
     Type: AWS::SQS::Queue
     Properties:
@@ -297,35 +301,40 @@ Resources:
         Variables:
           API_GATEWAY_REGION: us-east-1
           DYNAMODB_REQUESTS_TABLE: requests
-          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test
+          MONGO_DB_URI:
+            Fn::Join:
+            - /
+            - - Fn::Join:
+                - //
+                - - Fn::Select:
+                    - 0
+                    - Fn::Split:
+                      - //
+                      - Fn::GetAtt:
+                        - MongoDBSetupCluster
+                        - srvAddress
+                  - Fn::Join:
+                    - '@'
+                    - - Fn::Join:
+                        - ':'
+                        - - Fn::GetAtt:
+                            - MongoDBSetupDBUser
+                            - username
+                          - Fn::GetAtt:
+                            - MongoDBSetupDBUser
+                            - password
+                      - Fn::Select:
+                        - 1
+                        - Fn::Split:
+                          - //
+                          - Fn::GetAtt:
+                            - MongoDBSetupCluster
+                            - srvAddress
+              - Ref: AtlasDatabaseName
           PLAYERS_DISTANCE: 100
           SQS_PENDINGREQUESTS_URL:
             Ref: PendingRequestsQue
-          WEBSOCKET_API_ENDPOINT:
-            Fn::Join:
-            - //
-            - - Fn::Select:
-                - 0
-                - Fn::Split:
-                  - //
-                  - Fn::GetAtt:
-                    - MongoDBSetupCluster
-                    - srvAddress
-              - Fn::Join:
-                - ':'
-                - - Fn::GetAtt:
-                    - MongoDBSetupDBUser
-                    - username
-                  - Fn::GetAtt:
-                    - MongoDBSetupDBUser
-                    - password
-              - Fn::Select:
-                - 1
-                - Fn::Split:
-                  - //
-                  - Fn::GetAtt:
-                    - MongoDBSetupCluster
-                    - srvAddress
+          WEBSOCKET_API_ENDPOINT: test
   ConfigMongoGroup:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -334,7 +343,7 @@ Resources:
       FunctionName: configMongoGroup
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/6e75d76d4e4923f1aecd9c65e7ed00f4
+      CodeUri: s3://ali-su-artifacts/e5eb0bc5a1f2534b92fb752fc629b960
       Layers:
       - Ref: serverlessLayer
       Timeout: 360
@@ -357,7 +366,7 @@ Resources:
       FunctionName: configMongoDBCluster
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/5aeb24b1d0c1a51587f4f84bad03400b
+      CodeUri: s3://ali-su-artifacts/e9a8c15243388f5ba9cb0dfd7a6a84a9
       Layers:
       - Ref: serverlessLayer
       Timeout: 900
@@ -380,10 +389,10 @@ Resources:
       FunctionName: configMongoStitch
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/dcf1084d1a955fffb2c6a7f973287cb7
+      CodeUri: s3://ali-su-artifacts/f38e05d0d72f4510f8efa48f2d4d2a73
       Layers:
       - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 120
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -403,10 +412,10 @@ Resources:
       FunctionName: configMongoService
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/d54720ef371991b42ffd41f07d4a8905
+      CodeUri: s3://ali-su-artifacts/7375bf475d937e80c38acb0aefe32d26
       Layers:
       - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 360
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -426,10 +435,10 @@ Resources:
       FunctionName: configMongoDatabaseUser
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/162c705034e53c701064ff2968c3b5e4
+      CodeUri: s3://ali-su-artifacts/961cff9f20351a7b133748e17e30272c
       Layers:
       - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 360
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -449,10 +458,10 @@ Resources:
       FunctionName: configMongoIpWhitelist
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/0c52220a8128f8dd0f5d36558eeb3baf
+      CodeUri: s3://ali-su-artifacts/6b3e928125f4a2a54bec13794a10d241
       Layers:
       - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 360
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -472,10 +481,10 @@ Resources:
       FunctionName: configMongoCollection
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/8e9f176a84fe18dde3abb939e824ed4a
+      CodeUri: s3://ali-su-artifacts/e7bf5b8ad44a98a3e442e750675bed56
       Layers:
       - Ref: serverlessLayer
-      Timeout: 60
+      Timeout: 360
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -495,10 +504,10 @@ Resources:
       FunctionName: configMongoTrigger
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/adc3bd485a456284ee9643a59babf94d
+      CodeUri: s3://ali-su-artifacts/8fbded8dd76e20a971eb3d6b13f4d233
       Layers:
       - Ref: serverlessLayer
-      Timeout: 30
+      Timeout: 120
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -515,7 +524,7 @@ Resources:
     Properties:
       LayerName: serverlessLayer
       Description: Layer description
-      ContentUri: s3://ali-su-artifacts/0a5c0de4ea083f97792bf268494bb4a7
+      ContentUri: s3://ali-su-artifacts/64ac710842dc1e8e9b26c35374849be9
       CompatibleRuntimes:
       - nodejs12.x
       - nodejs8.10

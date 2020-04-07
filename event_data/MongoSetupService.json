@@ -4,10 +4,11 @@
     "ResponseURL" : "pre-signed-url-for-create-response",
     "ResourceType" : "Custom::MyCustomResourceType",
     "LogicalResourceId" : "name of resource in template",
+    "PhysicalResourceId": "5e8b9779f15ab849f9b8b558",
     "StackId" : "arn:aws:cloudformation:us-east-2:namespace:stack/stack-name/guid",
     "ResourceProperties" : {
-        "groupId": "5e89c640043542192e593202",
-        "appId": "5e89d6914101a3f889d22a9e",
+        "groupId": "5e8b6093a35c12472edc0023",
+        "appId": "5e8b86460d631a02e090cc6b",
         "name": "TestService",
         "type": "mongodb-atlas",
         "config": {

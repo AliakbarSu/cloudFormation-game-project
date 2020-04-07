@@ -15,6 +15,7 @@ describe("DatabaseUser::databaseUser", function() {
 
     let event = {
         PhysicalResourceId: "test_user_name",
+        databaseName: "test_database",
         groupId: "test_group_id",
         username: "test_user",
         password: "test_password"
@@ -172,14 +173,14 @@ describe("DatabaseUser::databaseUser", function() {
     
         it("Should make a delete request to the correct endpoint", async () => {
             await deleteDatabaseUser(event)
-            const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${event.groupId}/databaseUsers/${event.PhysicalResourceId}`
+            const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${event.groupId}/databaseUsers/${event.databaseName}/${event.PhysicalResourceId}`
             expect(digestDeleteStub.calledOnce).to.be.true
             expect(digestDeleteStub.getCall(0).args[0]).to.equal(url)
         })
     
-        it("Should return the deleted user object", async () => {
+        it("Should return null", async () => {
             const createdDatabaseUser = await deleteDatabaseUser(event)
-            expect(createdDatabaseUser).to.deep.equal(user)
+            expect(createdDatabaseUser).to.be.null
         })
     })
 })

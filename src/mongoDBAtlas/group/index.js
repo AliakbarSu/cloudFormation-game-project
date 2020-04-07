@@ -21,24 +21,21 @@ exports.handler = async (event, context) => {
       const timeoutValue = context.getRemainingTimeInMillis()
       TO.timeout(event, context, timeoutValue)
 
-        switch(event.RequestType.toUpperCase()) {
-            case "CREATE":
-              responseData = await GROUP.createGroup(event)
-              eventCopy = {...event, PhysicalResourceId: responseData.id}
-              return SR.sendResponse(eventCopy, context, responseStatus, responseData)
-            case "UPDATE":
-              responseData = await GROUP.updateGroup(event)
-              eventCopy = {...event, PhysicalResourceId: responseData.id}
-              return SR.sendResponse(eventCopy, context, responseStatus, responseData)
-            case "DELETE":
-              responseData = await GROUP.deleteGroup(event)
-              eventCopy = {...event, PhysicalResourceId: responseData.id}
-              return SR.sendResponse(eventCopy, context, responseStatus, responseData)
-            default:
-              console.log("Invalid RequestType", event.RequestType)
-              responseStatus = "FAILED"
-              return SR.sendResponse(event, context, responseStatus, responseData)
-        }
+      console.log("Received Event: " + event.RequestType)
+      switch(event.RequestType.toUpperCase()) {
+          case "CREATE":
+            responseData = await GROUP.createGroup(event)
+            eventCopy = {...event, PhysicalResourceId: responseData.id}
+            return SR.sendResponse(eventCopy, context, responseStatus, responseData)
+          case "UPDATE":
+            return SR.sendResponse(event, context, responseStatus, responseData)
+          case "DELETE":
+            await GROUP.deleteGroup(event)
+            return SR.sendResponse(event, context, responseStatus, responseData)
+          default:
+            console.log("Invalid RequestType", event.RequestType)
+            return SR.sendResponse(event, context, "FAILED", responseData)
+      }
     }catch(err) {
         console.log(`Failed to perform ${event.RequestType} operation ${err}`)
         return SR.sendResponse(event, context, "FAILED", responseData)

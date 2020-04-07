@@ -10,7 +10,9 @@ const { removeUnrelatedProperties } = require(resourcesPath + 'utils/removeUnrel
     
 
 exports.createIp = async (event) => {
+    console.log("Adding IP address to the whitelist.")
     if(!event || !event.groupId) {
+        console.log("The following arguments was invalid: ", event)
         return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
     }
 
@@ -18,29 +20,25 @@ exports.createIp = async (event) => {
     const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/whitelist`
     
     const params = removeUnrelatedProperties(event)
-    return axiosDigest.post(url, [params]).then(res => res.data.results[0])
+    const ipAddress = event.ipAddress
+    await axiosDigest.post(url, [params])
+    return {ipAddress: ipAddress}
 }
 
-exports.updateIp = async (event) => {
-    if(!event || !event.groupId) {
-        return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
-    }
 
-    const groupId = event.groupId
-    const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/whitelist`
-    
-    const params = removeUnrelatedProperties(event)
-    return axiosDigest.post(url, [params]).then(res => res.data.results[0])
-}
-
-exports.deleteIp = (event) => {
+exports.deleteIp = async (event) => {
+    console.log("Removing IP address from the whitelist.")
     if(!event || !event.groupId || !event.PhysicalResourceId) {
+        console.log("The following arguments was invalid: ", event)
         return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
     }
 
     const groupId = event.groupId
     const ipAddress = event.PhysicalResourceId
-    const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/whitelist/${ipAddress}`
+    const cidrBlock = ipAddress.split("/")
+    const newCidrBlock = cidrBlock[0] + "%2F" + cidrBlock[1]
+    const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/whitelist/${newCidrBlock}`
     
-    return axiosDigest.delete(url).then(res => res.data.results[0])
+    await axiosDigest.delete(url)
+    return {ipAddress: event.ipAddress}
 }

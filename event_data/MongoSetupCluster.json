@@ -4,9 +4,10 @@
     "ResponseURL" : "pre-signed-url-for-create-response",
     "ResourceType" : "Custom::MyCustomResourceType",
     "LogicalResourceId" : "name of resource in template",
+    "PhysicalResourceId": "TestCLUSTERa",
     "StackId" : "arn:aws:cloudformation:us-east-2:namespace:stack/stack-name/guid",
     "ResourceProperties" : {
-       "groupId": "5e89c640043542192e593202",
+       "groupId": "5e8b6093a35c12472edc0023",
         "autoScalling": {
           "compute": {
             "enabled": true,
