@@ -28,6 +28,10 @@ const UTIL = require('../../../../../src/opt/nodejs/utils/stitch-authenticate')
 
     this.beforeAll(() => {
         axiosMock = new MockAdapter(axios);
+
+        axiosMock.onGet()
+        .reply(200, createdApp)
+
         axiosMock.onPost()
         .reply(200, createdApp)
 

@@ -3,6 +3,8 @@ const fetch = require('node-fetch');
 const jose = require('node-jose');
 const CONSTANTS = require('../constants');
 
+
+
 const tokenParser = deps => (token) => {
     return new Promise( async (resolve, reject) => {
         if (!token) {
@@ -13,6 +15,8 @@ const tokenParser = deps => (token) => {
         let header = deps.jose.util.base64url.decode(sections[0]);
         header = JSON.parse(header);
         const kid = header.kid;
+
+        
 
         // Fetch known valid keys
         try {

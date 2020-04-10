@@ -41,7 +41,7 @@ exports.checkClusterDeleteStatus = async (event, checkInterval, total, state) =>
                 console.log(`Cluster is at DELETING state.`)
                 if(err.response.data.errorCode.toUpperCase() == state.toUpperCase()) {
                     clearInterval(interval)
-                    resolve()
+                    return resolve()
                 }
                 console.log(err)
             }

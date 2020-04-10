@@ -29,7 +29,6 @@ exports.deleteGroup = async (event) => {
     }
     const groupId = event.PhysicalResourceId
     const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}`
-    console.log(url)
     await axiosDigest.delete(url)
     return null
 }

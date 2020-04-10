@@ -119,7 +119,8 @@ describe("DatabaseUser::databaseUser", function() {
             }
         })
     
-        it("Should make a patch request and pass the correct params", async () => {
+        it("Should make a patch request and pass the correct params when the username has not changed", async () => {
+            event.PhysicalResourceId = event.username
             await updateDatabaseUser(event)
             expect(digestPatchStub.calledOnce).to.be.true
             expect(digestPatchStub.getCall(0).args[1].name).to.equal(event.name)
@@ -128,7 +129,7 @@ describe("DatabaseUser::databaseUser", function() {
     
         it("Should make a patch request to the correct endpoint", async () => {
             await updateDatabaseUser(event)
-            const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${event.groupId}/databaseUsers/${event.PhysicalResourceId}`
+            const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${event.groupId}/databaseUsers/${event.databaseName}/${event.PhysicalResourceId}`
             expect(digestPatchStub.calledOnce).to.be.true
             expect(digestPatchStub.getCall(0).args[0]).to.equal(url)
         })

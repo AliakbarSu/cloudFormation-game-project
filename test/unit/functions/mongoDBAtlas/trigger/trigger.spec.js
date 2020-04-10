@@ -28,10 +28,14 @@ const UTIL = require('../../../../../src/opt/nodejs/utils/stitch-authenticate')
 
     this.beforeAll(() => {
         axiosMock = new MockAdapter(axios);
+
+        axiosMock.onGet()
+        .reply(200, createdTrigger)
+
         axiosMock.onPost()
         .reply(200, createdTrigger)
 
-        axiosMock.onPatch()
+        axiosMock.onPut()
         .reply(200, createdTrigger)
 
         axiosMock.onDelete()
@@ -154,17 +158,17 @@ const UTIL = require('../../../../../src/opt/nodejs/utils/stitch-authenticate')
 
         it("Should make an update request and pass the correct params", async () => {
             await updateEventTrigger(event)
-            expect(axiosMock.history.patch.length).to.equal(1)
-            expect(JSON.parse(axiosMock.history.patch[0].data).name).equal(event.name)
-            expect(JSON.parse(axiosMock.history.patch[0].data)).not.to.have.property("PhysicalResourceId")
-            expect(axiosMock.history.patch[0].headers.Authorization).to.equal("Bearer " + authToken)
+            expect(axiosMock.history.put.length).to.equal(1)
+            expect(JSON.parse(axiosMock.history.put[0].data).name).equal(event.name)
+            expect(JSON.parse(axiosMock.history.put[0].data)).not.to.have.property("PhysicalResourceId")
+            expect(axiosMock.history.put[0].headers.Authorization).to.equal("Bearer " + authToken)
         })
 
         it("Should make an update request to correct endpoint", async () => {
             const url = `https://stitch.mongodb.com/api/admin/v3.0/groups/${event.groupId}/apps/${event.appId}/triggers/${event.PhysicalResourceId}`
-            axiosMock.onPatch(url).reply(200, {_id: "ok"})
+            axiosMock.onPut(url).reply(200, {_id: "ok"})
             await updateEventTrigger(event)
-            expect(axiosMock.history.patch.length).to.equal(1)
+            expect(axiosMock.history.put.length).to.equal(1)
         })
     })
 

@@ -49,6 +49,7 @@ exports.deleteCluster = (event) => {
   const clusterName = event.PhysicalResourceId
   const groupId = event.groupId
   const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${groupId}/clusters/${clusterName}`
+  console.log(url)
   return axiosDigest.delete(url).then(res => res.data)
 }
 

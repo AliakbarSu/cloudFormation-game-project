@@ -50,11 +50,11 @@ describe("Collection::index", function() {
         expect(createCollectionStub.getCall(0).args[0]).to.deep.equal(event)
     })
 
-    it("Should call updateCollection when RequestType is 'Update' and pass the event and context object", async () => {
+    it("Should invoke sendResponse with FAILED status when RequestType is 'Update' and pass the event and context object", async () => {
         event.RequestType = "Update"
         await handler(event, context)
-        expect(updateCollectionStub.calledOnce).to.be.true
-        expect(updateCollectionStub.getCall(0).args[0]).to.deep.equal(event)
+        expect(sendResponseStub.calledOnce).to.be.true
+        expect(sendResponseStub.getCall(0).args[2]).to.equal("SUCCESS")
     })
 
     it("Should call deletCollection when RequestType is 'Delete' and pass the event and context object", async () => {
@@ -89,7 +89,7 @@ describe("Collection::index", function() {
     it("Should invoke sendResponse with FAILED status when function is about to timeout", async () => {
         event.RequestType = "Create"
         event.testProp = "true"
-        context.get_remaining_time_in_millis = () => 50
+        context.getRemainingTimeInMillis = () => 50
         createCollectionStub.returns(new Promise((resolve) => setTimeout(() => resolve(collection), 100)))
 
         await handler(event, context)

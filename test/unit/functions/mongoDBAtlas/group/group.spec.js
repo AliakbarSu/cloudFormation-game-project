@@ -89,45 +89,6 @@ describe("Group::group", function() {
     })
 
 
-    describe("updateGroup", function() {
-        it("Should throw error if event or event.PhysicalResourceId is not provided or is invalid", async () => {
-            try {
-                await updateGroup(null)
-                throw new Error("FALSE_PASS")
-            }catch(err) {
-                expect(digestPatchStub.calledOnce).to.be.false
-                expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-            }
-    
-            try {
-                await updateGroup({...event, PhysicalResourceId: null})
-                throw new Error("FALSE_PASS")
-            }catch(err) {
-                expect(digestPatchStub.calledOnce).to.be.false
-                expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-            }
-        })
-    
-        it("Should make a patch request and pass the correct params", async () => {
-            await updateGroup(event)
-            expect(digestPatchStub.calledOnce).to.be.true
-            expect(digestPatchStub.getCall(0).args[1].name).to.equal(event.name)
-            expect(digestPatchStub.getCall(0).args[1].provideName).to.equal(event.provideName)
-        })
-    
-        it("Should make a patch request to the correct endpoint", async () => {
-            await updateGroup(event)
-            const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${event.PhysicalResourceId}`
-            expect(digestPatchStub.calledOnce).to.be.true
-            expect(digestPatchStub.getCall(0).args[0]).to.equal(url)
-        })
-    
-        it("Should return the updated group object", async () => {
-            const createdGroup = await createGroup(event)
-            expect(createdGroup).to.deep.equal(group)
-        })
-    })
-
     describe("deleteGroup", function() {
         it("Should throw error if event or event.PhysicalResourceId is not provided or is invalid", async () => {
             try {
@@ -159,9 +120,9 @@ describe("Group::group", function() {
             expect(digestDeleteStub.getCall(0).args[0]).to.equal(url)
         })
     
-        it("Should return the deleted group object", async () => {
+        it("Should return null when group is deleted", async () => {
             const createdGroup = await deleteGroup(event)
-            expect(createdGroup).to.deep.equal(group)
+            expect(createdGroup).to.deep.equal(null)
         })
     })
 })

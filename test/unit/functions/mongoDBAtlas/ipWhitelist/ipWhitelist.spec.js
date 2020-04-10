@@ -84,43 +84,6 @@ describe("IpWhitelist::ipWhitelist", function() {
     })
 
 
-    describe("updateIp", function() {
-        it("Should throw error if event or groupId is not provided or is invalid", async () => {
-            try {
-                await updateIp(null)
-                throw new Error("FALSE_PASS")
-            }catch(err) {
-                expect(digestPostStub.calledOnce).to.be.false
-                expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-            }
-    
-            try {
-                await updateIp({...event, groupId: null})
-                throw new Error("FALSE_PASS")
-            }catch(err) {
-                expect(digestPostStub.calledOnce).to.be.false
-                expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-            }
-        })
-    
-        it("Should make a post request and pass the correct params", async () => {
-            await updateIp(event)
-            expect(digestPostStub.calledOnce).to.be.true
-            expect(digestPostStub.getCall(0).args[1][0].ipAddress).to.equal(event.ipAddress)
-        })
-    
-        it("Should make a post request to the correct endpoint", async () => {
-            await updateIp(event)
-            const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${event.groupId}/whitelist`
-            expect(digestPostStub.calledOnce).to.be.true
-            expect(digestPostStub.getCall(0).args[0]).to.equal(url)
-        })
-    
-        it("Should return the update ip object", async () => {
-            const createdIp = await createIp(event)
-            expect(createdIp).to.deep.equal({ipAddress: ip.ipAddress})
-        })
-    })
 
     describe("deleteIp", function() {
         it("Should throw error if event, groupId, or event.PhysicalResourceId is not provided or is invalid", async () => {
@@ -155,8 +118,11 @@ describe("IpWhitelist::ipWhitelist", function() {
         })
     
         it("Should make a delete request to the correct endpoint", async () => {
+            const ipAddress = event.PhysicalResourceId
+            const cidrBlock = ipAddress.split("/")
+            const newCidrBlock = cidrBlock[0] + "%2F" + cidrBlock[1]
             await deleteIp(event)
-            const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${event.groupId}/whitelist/${event.PhysicalResourceId}`
+            const url = `https://cloud.mongodb.com/api/atlas/v1.0/groups/${event.groupId}/whitelist/${newCidrBlock}`
             expect(digestDeleteStub.calledOnce).to.be.true
             expect(digestDeleteStub.getCall(0).args[0]).to.equal(url)
         })

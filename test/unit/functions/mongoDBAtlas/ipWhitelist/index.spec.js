@@ -10,7 +10,7 @@ const SR = require('../../../../../src/opt/nodejs/utils/sendResponse')
 
 
 describe("IpWhitelist::index", function() {
-    let createIpStub, updateIpStub, deleteIpStub,
+    let createIpStub, deleteIpStub,
     sendResponseStub;
 
     let context = {getRemainingTimeInMillis: () => 100}
@@ -24,21 +24,18 @@ describe("IpWhitelist::index", function() {
 
     this.beforeAll(() => {
        createIpStub = sinon.stub(IP, "createIp").resolves(ip)
-       updateIpStub = sinon.stub(IP, "updateIp").resolves(ip)
        deleteIpStub = sinon.stub(IP, "deleteIp").resolves(ip)
        sendResponseStub = sinon.stub(SR, "sendResponse").resolves()
     })
 
     this.beforeEach(() => {
         createIpStub.resetHistory()
-        updateIpStub.resetHistory()
         deleteIpStub.resetHistory()
         sendResponseStub.resetHistory()
     })
 
     this.afterAll(() => {
         createIpStub.restore()
-        updateIpStub.restore()
         deleteIpStub.restore()
         sendResponseStub.restore()
     })
@@ -50,12 +47,6 @@ describe("IpWhitelist::index", function() {
         expect(createIpStub.getCall(0).args[0]).to.deep.equal(event)
     })
 
-    it("Should call updateIp when RequestType is 'Update' and pass the event and context object", async () => {
-        event.RequestType = "Update"
-        await handler(event, context)
-        expect(updateIpStub.calledOnce).to.be.true
-        expect(updateIpStub.getCall(0).args[0]).to.deep.equal(event)
-    })
 
     it("Should call deletIp when RequestType is 'Delete' and pass the event and context object", async () => {
         event.RequestType = "Delete"

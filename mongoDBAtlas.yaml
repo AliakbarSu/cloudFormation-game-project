@@ -1,0 +1,448 @@
+ 
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: A Node.js web service deployed to AWS Lambda.
+Parameters:
+  MongoDbApiKey:
+    Type: String
+    Default: kmdwueir
+  MongoDbSecretKey:
+    Type: String
+    Default: 755ed978-c944-4627-b210-6ae1ecb71424
+  MongoDBAtlasOrganizationID:
+    Type: String
+    Default: 5c7b7335cf09a27596230eea
+  AtlasGroupName:
+    Type: String
+    Default: MyGroup
+  AtlasDatabaseName:
+    Type: String
+    Default: TestDatabase
+  AtlasCollectionName:
+    Type: String
+    Default: TestCollection
+Resources:
+  ######################
+  # CUSTOM RESOURCES
+  ######################
+  # GROUP
+  MongoDBSetupGroup:
+    Type: Custom::MongoDBSetupGroup
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      ServiceToken: !GetAtt ConfigMongoGroup.Arn
+      orgId: !Ref MongoDBAtlasOrganizationID
+      name: "Test_group"
+  # IP WHITELIST
+  MongoDBSetupDBIpWhitelist:
+    Type: Custom::MongoDBSetupIpWhitelist
+    DependsOn:
+      - FetchLambdaCodeFromS3
+      - MongoDBSetupGroup
+    Properties:
+      ServiceToken: !GetAtt ConfigMongoIpWhitelist.Arn
+      groupId: !GetAtt MongoDBSetupGroup.id
+      ipAddress: "0.0.0.0/0"
+  # CLUSTER
+  MongoDBSetupCluster:
+    Type: Custom::MongoDBSetupCluster
+    DependsOn:
+      - FetchLambdaCodeFromS3
+      - MongoDBSetupGroup
+    Properties:
+      ServiceToken: !GetAtt ConfigMongoCluster.Arn
+      groupId: !GetAtt MongoDBSetupGroup.id
+      name: TestCluster
+      autoScalling:
+        compute:
+          enabled: true
+          scaleDownEnabled: true
+          minInstanceSize: M10
+          diskGBEnabled: true
+      diskSizeGB: 10
+      mongoDBMajorVersion: 4.2
+      providerSettings:
+        autoScaling:
+          compute:
+            minInstanceSize: M10
+            maxInstanceSize: M20
+        diskIOPS: 100
+        volumeType: STANDARD
+        encryptEBSVolume: true
+        instanceSizeName: M10
+        providerName: AWS
+        regionName: "US_EAST_1"
+  # STITCH APP
+  MongoDBSetupStitch:
+    Type: Custom::MongoDBSetupStitch
+    DependsOn:
+      - FetchLambdaCodeFromS3
+      - MongoDBSetupCluster
+    Properties:
+      ServiceToken: !GetAtt ConfigMongoStitch.Arn
+      groupId: !GetAtt MongoDBSetupGroup.id
+      name: TestStitchApp
+      deployment_model: LOCAL
+      region: "us-east-1"
+  # SERVICE
+  MongoDBSetupService:
+    Type: Custom::MongoDBSetupService
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      ServiceToken: !GetAtt ConfigMongoService.Arn
+      groupId: !GetAtt MongoDBSetupGroup.id
+      appId: !GetAtt MongoDBSetupStitch._id
+      name: MyService1
+      type: mongodb-atlas
+      config:
+        clusterName: !GetAtt MongoDBSetupCluster.name
+  # DATABASE USER
+  MongoDBSetupDBUser:
+    Type: Custom::MongoDBSetupDatabaseUser
+    DependsOn:
+      - FetchLambdaCodeFromS3
+      - MongoDBSetupGroup
+    Properties:
+      ServiceToken: !GetAtt ConfigMongoDatabaseUser.Arn
+      groupId: !GetAtt MongoDBSetupGroup.id
+      databaseName: admin
+      password: changeme123
+      username: david
+      roles: 
+        - databaseName: admin
+          roleName: atlasAdmin
+  # COLLECTION
+  MongoDBSetupCollection:
+    Type: Custom::MongoDBSetupCollection
+    DependsOn:
+      - FetchLambdaCodeFromS3
+      - MongoDBSetupDBUser
+      - MongoDBSetupCluster
+      - MongoDBSetupDBIpWhitelist
+    Properties:
+      ServiceToken: !GetAtt ConfigMongoCollection.Arn
+      groupId: !GetAtt MongoDBSetupGroup.id
+      database: !Ref AtlasDatabaseName
+      collection: !Ref AtlasCollectionName
+      url: !Join
+              - "//"
+              - - !Select [ 0, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
+                - !Join
+                    - "@"
+                    - - !Join
+                        - ":"
+                        - - !GetAtt MongoDBSetupDBUser.username
+                          - !GetAtt MongoDBSetupDBUser.password 
+                      - !Select [ 1, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
+  # TRIGGER
+  MongoDBSetupTrigger:
+    Type: Custom::MongoDBSetupTrigger
+    DependsOn:
+      - FetchLambdaCodeFromS3
+      - MongoDBSetupCollection
+      - MongoDBSetupService
+    Properties:
+      ServiceToken: !GetAtt "ConfigMongoTrigger.Arn"
+      groupId: !GetAtt "MongoDBSetupGroup.id"
+      appId: !GetAtt "MongoDBSetupStitch._id"
+      name: TestTrigger
+      type: DATABASE
+      event_processors:
+        AWS_EVENTBRIDGE:
+          type: AWS_EVENTBRIDGE
+          config:
+            account_id: !Ref "AWS::AccountId"
+            region: !Ref "AWS::Region"
+      config:
+        operation_types:
+          - INSERT
+          - UPDATE
+          - DELETE
+          - REPLACE
+        full_document: true
+        match: {}
+        collection: TestCollection
+        database: !Ref AtlasDatabaseName
+        collection: !GetAtt "MongoDBSetupCollection.name"
+        service_id: !GetAtt "MongoDBSetupService._id"
+  #######################
+  # LAMBDA FUNCTIONS
+  #######################
+  # FUNCTION GROUP
+  ConfigMongoGroup:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoGroup
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/mongoDBAtlas/group
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 360
+      MemorySize: 128
+      Role: !GetAtt ConfigMongoDatabaseRole.Arn
+      Environment:
+        Variables:
+          API_KEY: !Ref MongoDbApiKey
+          SECRET_KEY: !Ref MongoDbSecretKey
+  # FUNCTION CLUSTER
+  ConfigMongoCluster:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoDBCluster
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/mongoDBAtlas/cluster
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 900
+      MemorySize: 128
+      Role: !GetAtt ConfigMongoClusterRole.Arn
+      Environment:
+        Variables:
+          API_KEY: !Ref MongoDbApiKey
+          SECRET_KEY: !Ref MongoDbSecretKey
+  # FUNCTION STITCH
+  ConfigMongoStitch:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoStitch
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/mongoDBAtlas/stitch
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 120
+      MemorySize: 128
+      Role: !GetAtt ConfigMongoDatabaseRole.Arn
+      Environment:
+        Variables:
+          API_KEY: !Ref MongoDbApiKey
+          SECRET_KEY: !Ref MongoDbSecretKey
+  # FUNCTION SERVICE
+  ConfigMongoService:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoService
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/mongoDBAtlas/service
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 360
+      MemorySize: 128
+      Role: !GetAtt ConfigMongoDatabaseRole.Arn
+      Environment:
+        Variables:
+          API_KEY: !Ref MongoDbApiKey
+          SECRET_KEY: !Ref MongoDbSecretKey
+  # FUNCTION DATABASE USER
+  ConfigMongoDatabaseUser:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoDatabaseUser
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/mongoDBAtlas/databaseUser
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 360
+      MemorySize: 128
+      Role: !GetAtt ConfigMongoDatabaseRole.Arn
+      Environment:
+        Variables:
+          API_KEY: !Ref MongoDbApiKey
+          SECRET_KEY: !Ref MongoDbSecretKey
+  # FUNCTION IP WHITELIST
+  ConfigMongoIpWhitelist:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoIpWhitelist
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/mongoDBAtlas/ipWhitelist
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 360
+      MemorySize: 128
+      Role: !GetAtt ConfigMongoDatabaseRole.Arn
+      Environment:
+        Variables:
+          API_KEY: !Ref MongoDbApiKey
+          SECRET_KEY: !Ref MongoDbSecretKey
+  # FUNCTION COLLECTION
+  ConfigMongoCollection:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoCollection
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/mongoDBAtlas/collection
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 360
+      MemorySize: 128
+      Role: !GetAtt ConfigMongoDatabaseRole.Arn
+      Environment:
+        Variables:
+          API_KEY: !Ref MongoDbApiKey
+          SECRET_KEY: !Ref MongoDbSecretKey
+  # FUNCTION TRIGGER
+  ConfigMongoTrigger:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: configMongoTrigger
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/mongoDBAtlas/trigger
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 120
+      MemorySize: 128
+      Role: !GetAtt ConfigMongoDatabaseRole.Arn
+      Environment:
+        Variables:
+          API_KEY: !Ref MongoDbApiKey
+          SECRET_KEY: !Ref MongoDbSecretKey
+  #######################
+  # FUNCTION LAYERS
+  #######################
+  serverlessLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: serverlessLayer
+      Description: Layer description
+      ContentUri: './src/opt'
+      CompatibleRuntimes:
+        - nodejs12.x
+        - nodejs8.10
+      LicenseInfo: 'Available under the MIT-0 license.'
+      RetentionPolicy: Retain
+  #######################
+  # LAMBDA PERMISSIONS
+  #######################
+  
+  #######################
+  # IAM ROLES
+  #######################
+  ConfigMongoClusterRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"    
+      Policies:
+        - PolicyName: LambdaBasicExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+        - PolicyName: InvokeSQS
+          PolicyDocument:
+            Version: '2012-10-17' 
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: '*'
+  ConfigMongoDatabaseRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"    
+      Policies:
+        - PolicyName: LambdaBasicExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+  #######################
+  # IAM POLICIES
+  #######################    
+  FetchLambdaCodeFromS3: 
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyName: FetchLambdaCodeFromS3
+      Roles:
+        - !Ref ConfigMongoClusterRole
+        - !Ref ConfigMongoDatabaseRole
+      PolicyDocument: 
+        Version: '2012-10-17' 
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectACL
+            Resource: 'arn:aws:s3:::ali-serverless-architecture/*'
+  
+Outputs:
+  EventSourceName:
+    Description: Parnter event source name for AWS EventBridge connection.
+    Value: !GetAtt MongoDBSetupTrigger.EventSourceName
+  MongoDbURL:
+    Description: MongoDB connection string
+    Value: !Join
+              - "/"
+              - - !Join
+                    - "//"
+                    - - !Select [ 0, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
+                      - !Join
+                          - "@"
+                          - - !Join
+                              - ":"
+                              - - !GetAtt MongoDBSetupDBUser.username
+                                - !GetAtt MongoDBSetupDBUser.password 
+                            - !Select [ 1, !Split [ //, !GetAtt MongoDBSetupCluster.srvAddress ] ]
+                - !Ref AtlasDatabaseName
+  DatabaseName:
+    Description: MongoDB atlas database name.
+    Value: !Ref AtlasDatabaseName
+  CollectionName:
+    Description: MongoDB atlas collection name.
+    Value: !Ref AtlasCollectionName
+

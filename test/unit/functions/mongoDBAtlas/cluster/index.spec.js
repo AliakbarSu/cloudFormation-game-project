@@ -12,7 +12,8 @@ const SR = require('../../../../../src/opt/nodejs/utils/sendResponse')
 
 describe("Cluster::index", function() {
     let createClusterStub, updateClusterStub, deleteClusterStub, 
-    fetchClusterStub, checkClusterStatusStub, sendResponseStub;
+    fetchClusterStub, checkClusterStatusStub, sendResponseStub,
+    checkClusterDeleteStatusStub;
 
     let context = {getRemainingTimeInMillis: () => 100}
     let event = {
@@ -30,6 +31,7 @@ describe("Cluster::index", function() {
        deleteClusterStub = sinon.stub(CLUSTER, "deleteCluster").resolves(cluster)
        fetchClusterStub = sinon.stub(CLUSTER, "fetchCluster").resolves(cluster)
        checkClusterStatusStub = sinon.stub(CLUSTER_STATE, "checkClusterStatus").resolves(cluster.name)
+       checkClusterDeleteStatusStub = sinon.stub(CLUSTER_STATE, "checkClusterDeleteStatus").resolves("DELETNG")
        sendResponseStub = sinon.stub(SR, "sendResponse").resolves()
     })
 
@@ -39,6 +41,7 @@ describe("Cluster::index", function() {
         deleteClusterStub.resetHistory()
         fetchClusterStub.resetHistory()
         checkClusterStatusStub.resetHistory()
+        checkClusterDeleteStatusStub.resetHistory()
         sendResponseStub.resetHistory()
     })
 
@@ -48,6 +51,7 @@ describe("Cluster::index", function() {
         deleteClusterStub.restore()
         fetchClusterStub.restore()
         checkClusterStatusStub.restore()
+        checkClusterDeleteStatusStub.restore()
         sendResponseStub.restore()
     })
 
@@ -63,7 +67,7 @@ describe("Cluster::index", function() {
         await handler(event, context)
         expect(checkClusterStatusStub.calledOnce).to.be.true
         expect(checkClusterStatusStub.getCall(0).args[0]).to.deep.equal(event)
-        expect(checkClusterStatusStub.getCall(0).args[1]).to.deep.equal(180000)
+        expect(checkClusterStatusStub.getCall(0).args[1]).to.deep.equal(60000)
     })
 
     it("Should call updateCluster when RequestType is 'Update' and pass the event and context object", async () => {
@@ -78,7 +82,7 @@ describe("Cluster::index", function() {
         await handler(event, context)
         expect(checkClusterStatusStub.calledOnce).to.be.true
         expect(checkClusterStatusStub.getCall(0).args[0]).to.deep.equal(event)
-        expect(checkClusterStatusStub.getCall(0).args[1]).to.deep.equal(180000)
+        expect(checkClusterStatusStub.getCall(0).args[1]).to.deep.equal(60000)
     })
 
     it("Should call deletCluster when RequestType is 'Delete' and pass the event and context object", async () => {
@@ -88,12 +92,12 @@ describe("Cluster::index", function() {
         expect(deleteClusterStub.getCall(0).args[0]).to.deep.equal(event)
     })
 
-    it("Should invoke checkClusterStatus", async () => {
+    it("Should invoke checkClusterDeleteStatus", async () => {
         event.RequestType = "Delete"
         await handler(event, context)
-        expect(checkClusterStatusStub.calledOnce).to.be.true
-        expect(checkClusterStatusStub.getCall(0).args[0]).to.deep.equal(event)
-        expect(checkClusterStatusStub.getCall(0).args[1]).to.deep.equal(180000)
+        expect(checkClusterDeleteStatusStub.calledOnce).to.be.true
+        expect(checkClusterDeleteStatusStub.getCall(0).args[0]).to.deep.equal(event)
+        expect(checkClusterDeleteStatusStub.getCall(0).args[1]).to.deep.equal(60000)
     })
 
     it("Should invoke sendResponse with FAILED status when unkown RequestType is passed", async () => {
@@ -121,7 +125,7 @@ describe("Cluster::index", function() {
     it("Should invoke sendResponse with FAILED status when function is about to timeout", async () => {
         event.RequestType = "Create"
         event.testProp = "true"
-        context.get_remaining_time_in_millis = () => 50
+        context.getRemainingTimeInMillis = () => 50
         createClusterStub.returns(new Promise((resolve) => setTimeout(() => resolve(cluster), 100)))
 
         await handler(event, context)

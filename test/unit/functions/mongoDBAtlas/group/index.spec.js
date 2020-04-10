@@ -10,7 +10,7 @@ const SR = require('../../../../../src/opt/nodejs/utils/sendResponse')
 
 
 describe("Group::index", function() {
-    let createGroupStub, updateGroupStub, deleteGroupStub,
+    let createGroupStub, deleteGroupStub,
     sendResponseStub;
 
     let context = {getRemainingTimeInMillis: () => 100}
@@ -24,21 +24,18 @@ describe("Group::index", function() {
 
     this.beforeAll(() => {
        createGroupStub = sinon.stub(GROUP, "createGroup").resolves(group)
-       updateGroupStub = sinon.stub(GROUP, "updateGroup").resolves(group)
        deleteGroupStub = sinon.stub(GROUP, "deleteGroup").resolves(group)
        sendResponseStub = sinon.stub(SR, "sendResponse").resolves()
     })
 
     this.beforeEach(() => {
         createGroupStub.resetHistory()
-        updateGroupStub.resetHistory()
         deleteGroupStub.resetHistory()
         sendResponseStub.resetHistory()
     })
 
     this.afterAll(() => {
         createGroupStub.restore()
-        updateGroupStub.restore()
         deleteGroupStub.restore()
         sendResponseStub.restore()
     })
@@ -48,13 +45,6 @@ describe("Group::index", function() {
         await handler(event, context)
         expect(createGroupStub.calledOnce).to.be.true
         expect(createGroupStub.getCall(0).args[0]).to.deep.equal(event)
-    })
-
-    it("Should call updateGroup when RequestType is 'Update' and pass the event and context object", async () => {
-        event.RequestType = "Update"
-        await handler(event, context)
-        expect(updateGroupStub.calledOnce).to.be.true
-        expect(updateGroupStub.getCall(0).args[0]).to.deep.equal(event)
     })
 
     it("Should call deletGroup when RequestType is 'Delete' and pass the event and context object", async () => {

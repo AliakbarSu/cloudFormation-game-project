@@ -2,270 +2,223 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: A Node.js web service deployed to AWS Lambda.
 Parameters:
-  MongoDbApiKey:
+  Stage:
     Type: String
-    Default: kmdwueir
-  MongoDbSecretKey:
-    Type: String
-    Default: 755ed978-c944-4627-b210-6ae1ecb71424
-  MongoDBAtlasOrganizationID:
-    Type: String
-    Default: 5c7b7335cf09a27596230eea
-  AtlasGroupName:
-    Type: String
-    Default: MyGroup
-  AtlasDatabaseName:
-    Type: String
-    Default: TestDatabase
-  AtlasCollectionName:
-    Type: String
-    Default: TestCollection
+    Description: The name for a project pipeline stage, such as Staging or Prod, for
+      which resources are provisioned and deployed.
+    Default: production
 Resources:
-  MongoDBEventBridge:
-    Type: AWS::Events::EventBus
+  ApiGwAccountConfig:
     DependsOn:
-    - MongoDBSetupTrigger
+    - ClickCollectWebsocket
+    Type: AWS::ApiGateway::Account
     Properties:
-      EventSourceName:
+      CloudWatchRoleArn:
         Fn::GetAtt:
-        - MongoDBSetupTrigger
-        - EventSourceName
-      Name:
-        Fn::GetAtt:
-        - MongoDBSetupTrigger
-        - EventSourceName
-  searchPlayersEventRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: search_for_players
-      EventBusName:
-        Ref: MongoDBEventBridge
-      EventPattern:
-        account:
-        - Ref: AWS::AccountId
-      State: ENABLED
-      Targets:
-      - Arn:
-          Fn::GetAtt:
-          - matchPlayers
-          - Arn
-        Id: matchPlayers
-  MongoDBSetupGroup:
-    Type: Custom::MongoDBSetupGroup
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      ServiceToken:
-        Fn::GetAtt:
-        - ConfigMongoGroup
+        - ClickCollectWebsocketLoggingRole
         - Arn
-      orgId:
-        Ref: MongoDBAtlasOrganizationID
-      name: Test_group
-  MongoDBSetupDBIpWhitelist:
-    Type: Custom::MongoDBSetupIpWhitelist
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    - MongoDBSetupGroup
+  ClickCollectWebsocket:
+    Type: AWS::ApiGatewayV2::Api
     Properties:
-      ServiceToken:
+      Name: ClickCollectWebsocket
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.message
+      CredentialsArn:
         Fn::GetAtt:
-        - ConfigMongoIpWhitelist
+        - ClickCollectWebsocketRole
         - Arn
-      groupId:
-        Fn::GetAtt:
-        - MongoDBSetupGroup
-        - id
-      ipAddress: 0.0.0.0/0
-  MongoDBSetupCluster:
-    Type: Custom::MongoDBSetupCluster
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    - MongoDBSetupGroup
+  ClickCollectConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
     Properties:
-      ServiceToken:
-        Fn::GetAtt:
-        - ConfigMongoCluster
-        - Arn
-      groupId:
-        Fn::GetAtt:
-        - MongoDBSetupGroup
-        - id
-      name: TestCluster
-      autoScalling:
-        compute:
-          enabled: true
-          scaleDownEnabled: true
-          minInstanceSize: M10
-          diskGBEnabled: true
-      diskSizeGB: 10
-      mongoDBMajorVersion: 4.2
-      providerSettings:
-        autoScaling:
-          compute:
-            minInstanceSize: M10
-            maxInstanceSize: M20
-        diskIOPS: 100
-        volumeType: STANDARD
-        encryptEBSVolume: true
-        instanceSizeName: M10
-        providerName: AWS
-        regionName: US_EAST_1
-  MongoDBSetupStitch:
-    Type: Custom::MongoDBSetupStitch
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    - MongoDBSetupCluster
-    Properties:
-      ServiceToken:
-        Fn::GetAtt:
-        - ConfigMongoStitch
-        - Arn
-      groupId:
-        Fn::GetAtt:
-        - MongoDBSetupGroup
-        - id
-      name: TestStitchApp
-      deployment_model: LOCAL
-      region: us-east-1
-  MongoDBSetupService:
-    Type: Custom::MongoDBSetupService
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      ServiceToken:
-        Fn::GetAtt:
-        - ConfigMongoService
-        - Arn
-      groupId:
-        Fn::GetAtt:
-        - MongoDBSetupGroup
-        - id
-      appId:
-        Fn::GetAtt:
-        - MongoDBSetupStitch
-        - _id
-      name: MyService1
-      type: mongodb-atlas
-      config:
-        clusterName:
-          Fn::GetAtt:
-          - MongoDBSetupCluster
-          - name
-  MongoDBSetupDBUser:
-    Type: Custom::MongoDBSetupDatabaseUser
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    - MongoDBSetupGroup
-    Properties:
-      ServiceToken:
-        Fn::GetAtt:
-        - ConfigMongoDatabaseUser
-        - Arn
-      groupId:
-        Fn::GetAtt:
-        - MongoDBSetupGroup
-        - id
-      databaseName: admin
-      password: changeme123
-      username: david
-      roles:
-      - databaseName: admin
-        roleName: atlasAdmin
-  MongoDBSetupCollection:
-    Type: Custom::MongoDBSetupCollection
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    - MongoDBSetupDBUser
-    - MongoDBSetupCluster
-    - MongoDBSetupDBIpWhitelist
-    Properties:
-      ServiceToken:
-        Fn::GetAtt:
-        - ConfigMongoCollection
-        - Arn
-      groupId:
-        Fn::GetAtt:
-        - MongoDBSetupGroup
-        - id
-      database:
-        Ref: AtlasDatabaseName
-      collection:
-        Ref: AtlasCollectionName
-      url:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      RouteKey: $connect
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Ref: CognitoLambdaAuthorizer
+      OperationName: ClickCollectConnectRoute
+      Target:
         Fn::Join:
-        - //
-        - - Fn::Select:
-            - 0
-            - Fn::Split:
-              - //
-              - Fn::GetAtt:
-                - MongoDBSetupCluster
-                - srvAddress
-          - Fn::Join:
-            - '@'
-            - - Fn::Join:
-                - ':'
-                - - Fn::GetAtt:
-                    - MongoDBSetupDBUser
-                    - username
-                  - Fn::GetAtt:
-                    - MongoDBSetupDBUser
-                    - password
-              - Fn::Select:
-                - 1
-                - Fn::Split:
-                  - //
-                  - Fn::GetAtt:
-                    - MongoDBSetupCluster
-                    - srvAddress
-  MongoDBSetupTrigger:
-    Type: Custom::MongoDBSetupTrigger
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    - MongoDBSetupCollection
-    - MongoDBSetupService
+        - /
+        - - integrations
+          - Ref: ClickCollectConnectInteg
+  ClickCollectConnectInteg:
+    Type: AWS::ApiGatewayV2::Integration
     Properties:
-      ServiceToken:
-        Fn::GetAtt:
-        - ConfigMongoTrigger
-        - Arn
-      groupId:
-        Fn::GetAtt:
-        - MongoDBSetupGroup
-        - id
-      appId:
-        Fn::GetAtt:
-        - MongoDBSetupStitch
-        - _id
-      name: TestTrigger
-      type: DATABASE
-      event_processors:
-        AWS_EVENTBRIDGE:
-          type: AWS_EVENTBRIDGE
-          config:
-            account_id:
-              Ref: AWS::AccountId
-            region:
-              Ref: AWS::Region
-      config:
-        operation_types:
-        - INSERT
-        - UPDATE
-        - DELETE
-        - REPLACE
-        full_document: true
-        match: {}
-        collection:
-          Fn::GetAtt:
-          - MongoDBSetupCollection
-          - name
-        database:
-          Ref: AtlasDatabaseName
-        service_id:
-          Fn::GetAtt:
-          - MongoDBSetupService
-          - _id
+      ApiId:
+        Ref: ClickCollectWebsocket
+      Description: Integration for builtin $connect route
+      IntegrationType: AWS
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteConnect.Arn}/invocations
+  ClickCollectDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      RouteKey: $disconnect
+      OperationName: ClickCollectDisconnectRoute
+      RouteResponseSelectionExpression: $default
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: ClickCollectDisconnectInteg
+  ClickCollectDisconnectInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      Description: Integration for builtin $disconnect route
+      IntegrationType: AWS
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteDisconnect.Arn}/invocations
+  ClickCollectDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      RouteKey: $default
+      OperationName: ClickCollectDefaultRoute
+      RouteResponseSelectionExpression: $default
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: ClickCollectDefaultInteg
+  ClickCollectDefaultInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      Description: Integration for builtin $default route
+      IntegrationType: MOCK
+  ClickCollectUpdateLocationRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      RouteKey: updateLocation
+      OperationName: ClickCollectUpdateLocationRoute
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: ClickCollectUpdateLocationInteg
+  ClickCollectUpdateLocationInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      Description: Pairing request integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteUpdateLocation.Arn}/invocations
+  ClickCollectAcceptRequestRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      RouteKey: acceptRequest
+      OperationName: ClickCollectAcceptRequestRoute
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: ClickCollectAcceptRequestInteg
+  ClickCollectAcceptRequestInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      Description: Integration for custom 'status' route
+      IntegrationType: AWS
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteAcceptRequest.Arn}/invocations
+  ClickCollectRejectRequestRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      RouteKey: rejectRequest
+      OperationName: ClickCollectRejectRequestRoute
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: ClickCollectRejectRequestInteg
+  ClickCollectRejectRequestInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      Description: Integration for custom 'status' route
+      IntegrationType: AWS
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteRejectRequest.Arn}/invocations
+  ClickCollectSubmitAnswersRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      RouteKey: submitAnswers
+      OperationName: ClickCollectSubmitAnswersRoute
+      Target:
+        Fn::Join:
+        - /
+        - - integrations
+          - Ref: ClickCollectSubmitAnswersInteg
+  ClickCollectSubmitAnswersInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+      Description: Integration for custom 'status' route
+      IntegrationType: AWS
+      IntegrationUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteSubmitAnswers.Arn}/invocations
+  CognitoLambdaAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      Name: CustomCognitoAuthorizer
+      ApiId:
+        Ref: ClickCollectWebsocket
+      AuthorizerType: REQUEST
+      AuthorizerUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaCognitoAuthorizer.Arn}/invocations
+      IdentitySource:
+      - route.request.querystring.Authorizer
+  ClickCollectWebSocketDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+    - ClickCollectConnectRoute
+    - ClickCollectDisconnectRoute
+    - ClickCollectDefaultRoute
+    - ClickCollectUpdateLocationRoute
+    - ClickCollectAcceptRequestRoute
+    Properties:
+      ApiId:
+        Ref: ClickCollectWebsocket
+  ClickCollectWebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName:
+        Fn::Sub: ${Stage}
+      Description:
+        Fn::Sub: ${Stage} traffic
+      DeploymentId:
+        Ref: ClickCollectWebSocketDeployment
+      ApiId:
+        Ref: ClickCollectWebsocket
+      DefaultRouteSettings:
+        LoggingLevel: INFO
+        DataTraceEnabled: true
+      AccessLogSettings:
+        DestinationArn:
+          Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:clickcollect-wss-access-logs
+        Format: '''{"requestId":"$context.requestId", "ip": "$context.identity.sourceIp",
+          "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime",
+          "eventType":"$context.eventType","routeKey":"$context.routeKey", "status":"$context.status","connectionId":"$context.connectionId"}'''
   PendingRequestsQue:
     Type: AWS::SQS::Queue
     Properties:
@@ -278,12 +231,128 @@ Resources:
       MessageRetentionPeriod: 86400
       QueueName: PendingGames
       VisibilityTimeout: 300
+  WebSocketRouteConnect:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteConnect
+      Handler: connect.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/1c774721bb4fb5be5cdba2dd547b0e5e
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          API_GATEWAY_REGION: us-east-1
+          DYNAMODB_REQUESTS_TABLE: requests
+  WebSocketRouteDisconnect:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteDisconnect
+      Handler: disconnect.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/471579494eb5a6f79927bcb67f577c8d
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          API_GATEWAY_REGION: us-east-1
+          DYNAMODB_REQUESTS_TABLE: requests
+  WebSocketRouteUpdateLocation:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteUpdateLocation
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/5123d7212c79c99e219018abbb40038b
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+  WebSocketRouteAcceptRequest:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteAcceptRequest
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/35076e90dfea691bbc0c24d5a22d8f03
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+  WebSocketRouteRejectRequest:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteRejectRequest
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/b6b15e169894e24da1e8572ccf26e276
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+  WebSocketRouteSubmitAnswers:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteSubmitAnswers
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/f4ba310017f10050f3449918887abc89
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+  LambdaCognitoAuthorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: LambdaCognitoAuthorizer
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/c7d6894042cfbf03637626b6ca477ef5
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          COGNITO_USER_POOL: us-east-1_5i9hLQyTN
+          COGNITO_USER_POOL_CLIENT: gdvig07kj34c7lttk57ccgebc
+          KEYS_URL: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_5i9hLQyTN/.well-known/jwks.json
   matchPlayers:
     Type: AWS::Serverless::Function
     DependsOn:
     - FetchLambdaCodeFromS3
-    - MongoDBSetupDBUser
-    - MongoDBSetupCluster
     Properties:
       FunctionName: matchPlayers
       Handler: matchPlayers.handler
@@ -301,224 +370,11 @@ Resources:
         Variables:
           API_GATEWAY_REGION: us-east-1
           DYNAMODB_REQUESTS_TABLE: requests
-          MONGO_DB_URI:
-            Fn::Join:
-            - /
-            - - Fn::Join:
-                - //
-                - - Fn::Select:
-                    - 0
-                    - Fn::Split:
-                      - //
-                      - Fn::GetAtt:
-                        - MongoDBSetupCluster
-                        - srvAddress
-                  - Fn::Join:
-                    - '@'
-                    - - Fn::Join:
-                        - ':'
-                        - - Fn::GetAtt:
-                            - MongoDBSetupDBUser
-                            - username
-                          - Fn::GetAtt:
-                            - MongoDBSetupDBUser
-                            - password
-                      - Fn::Select:
-                        - 1
-                        - Fn::Split:
-                          - //
-                          - Fn::GetAtt:
-                            - MongoDBSetupCluster
-                            - srvAddress
-              - Ref: AtlasDatabaseName
           PLAYERS_DISTANCE: 100
           SQS_PENDINGREQUESTS_URL:
             Ref: PendingRequestsQue
-          WEBSOCKET_API_ENDPOINT: test
-  ConfigMongoGroup:
-    Type: AWS::Serverless::Function
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: configMongoGroup
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/e5eb0bc5a1f2534b92fb752fc629b960
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 360
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - ConfigMongoDatabaseRole
-        - Arn
-      Environment:
-        Variables:
-          API_KEY:
-            Ref: MongoDbApiKey
-          SECRET_KEY:
-            Ref: MongoDbSecretKey
-  ConfigMongoCluster:
-    Type: AWS::Serverless::Function
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: configMongoDBCluster
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/e9a8c15243388f5ba9cb0dfd7a6a84a9
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 900
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - ConfigMongoClusterRole
-        - Arn
-      Environment:
-        Variables:
-          API_KEY:
-            Ref: MongoDbApiKey
-          SECRET_KEY:
-            Ref: MongoDbSecretKey
-  ConfigMongoStitch:
-    Type: AWS::Serverless::Function
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: configMongoStitch
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/f38e05d0d72f4510f8efa48f2d4d2a73
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 120
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - ConfigMongoDatabaseRole
-        - Arn
-      Environment:
-        Variables:
-          API_KEY:
-            Ref: MongoDbApiKey
-          SECRET_KEY:
-            Ref: MongoDbSecretKey
-  ConfigMongoService:
-    Type: AWS::Serverless::Function
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: configMongoService
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/7375bf475d937e80c38acb0aefe32d26
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 360
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - ConfigMongoDatabaseRole
-        - Arn
-      Environment:
-        Variables:
-          API_KEY:
-            Ref: MongoDbApiKey
-          SECRET_KEY:
-            Ref: MongoDbSecretKey
-  ConfigMongoDatabaseUser:
-    Type: AWS::Serverless::Function
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: configMongoDatabaseUser
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/961cff9f20351a7b133748e17e30272c
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 360
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - ConfigMongoDatabaseRole
-        - Arn
-      Environment:
-        Variables:
-          API_KEY:
-            Ref: MongoDbApiKey
-          SECRET_KEY:
-            Ref: MongoDbSecretKey
-  ConfigMongoIpWhitelist:
-    Type: AWS::Serverless::Function
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: configMongoIpWhitelist
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/6b3e928125f4a2a54bec13794a10d241
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 360
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - ConfigMongoDatabaseRole
-        - Arn
-      Environment:
-        Variables:
-          API_KEY:
-            Ref: MongoDbApiKey
-          SECRET_KEY:
-            Ref: MongoDbSecretKey
-  ConfigMongoCollection:
-    Type: AWS::Serverless::Function
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: configMongoCollection
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/e7bf5b8ad44a98a3e442e750675bed56
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 360
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - ConfigMongoDatabaseRole
-        - Arn
-      Environment:
-        Variables:
-          API_KEY:
-            Ref: MongoDbApiKey
-          SECRET_KEY:
-            Ref: MongoDbSecretKey
-  ConfigMongoTrigger:
-    Type: AWS::Serverless::Function
-    DependsOn:
-    - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: configMongoTrigger
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/8fbded8dd76e20a971eb3d6b13f4d233
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 120
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - ConfigMongoDatabaseRole
-        - Arn
-      Environment:
-        Variables:
-          API_KEY:
-            Ref: MongoDbApiKey
-          SECRET_KEY:
-            Ref: MongoDbSecretKey
+          WEBSOCKET_API_ENDPOINT:
+            Fn::Sub: https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections
   serverlessLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -530,19 +386,69 @@ Resources:
       - nodejs8.10
       LicenseInfo: Available under the MIT-0 license.
       RetentionPolicy: Retain
-  MongoDBEventRulePermissions:
+  ClickCollectConnectIntegPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName:
-        Fn::GetAtt:
-        - matchPlayers
-        - Arn
       Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
+      FunctionName:
+        Ref: WebSocketRouteConnect
+      Principal: apigateway.amazonaws.com
       SourceArn:
-        Fn::GetAtt:
-        - searchPlayersEventRule
-        - Arn
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/$connect
+  ClickCollectDisconnectIntegPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: WebSocketRouteDisconnect
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/$disconnect
+  ClickCollectUpdateLocationIntegPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: WebSocketRouteUpdateLocation
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/updateLocation
+  ClickCollectAcceptRequestPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: WebSocketRouteAcceptRequest
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/acceptRequest
+  ClickCollectRejectRequestIntegPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: WebSocketRouteRejectRequest
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/rejectRequest
+  ClickCollectSubmitAnswersIntegPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: WebSocketRouteSubmitAnswers
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/submitAnswers
+  LambdaCognitoAuthorizerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: LambdaCognitoAuthorizer
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/authorizers/${CognitoLambdaAuthorizer}
   MatchPlayersRole:
     Type: AWS::IAM::Role
     Properties:
@@ -567,7 +473,7 @@ Resources:
             - logs:PutLogEvents
             Resource: '*'
       Path: /
-  ConfigMongoClusterRole:
+  ClickCollectWebsocketRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -576,7 +482,7 @@ Resources:
         - Effect: Allow
           Principal:
             Service:
-            - lambda.amazonaws.com
+            - apigateway.amazonaws.com
           Action:
           - sts:AssumeRole
       Policies:
@@ -590,17 +496,8 @@ Resources:
             - logs:CreateLogStream
             - logs:PutLogEvents
             Resource: '*'
-      - PolicyName: InvokeSQS
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - sqs:ReceiveMessage
-            - sqs:DeleteMessage
-            - sqs:GetQueueAttributes
-            Resource: '*'
-  ConfigMongoDatabaseRole:
+      Path: /
+  ClickCollectWebsocketLoggingRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -609,27 +506,16 @@ Resources:
         - Effect: Allow
           Principal:
             Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Policies:
-      - PolicyName: LambdaBasicExecutionPolicy
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            Effect: Allow
-            Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            Resource: '*'
+            - apigateway.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+      - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
   FetchLambdaCodeFromS3:
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: FetchLambdaCodeFromS3
       Roles:
-      - Ref: ConfigMongoClusterRole
-      - Ref: ConfigMongoDatabaseRole
       - Ref: MatchPlayersRole
       PolicyDocument:
         Version: '2012-10-17'
