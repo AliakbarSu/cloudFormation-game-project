@@ -1,21 +1,51 @@
-const jose = require('node-jose');
+const { curry } = require("lodash/fp")
+const jose = require('node-jose')
+const { isValidToken, isValidKey } = require('../validators/index')
 
-const _getClaims = deps => async (key, token) => {
-    if(!key || !token) {
-        return Promise.reject(new Error("PUBLIC_KEY_OR_TOKEN_NOT_PROVIDED"))
+
+const signatureVerificationFailedError = () => new Error("SIGNATURE_VERIFICATION_FAILED")
+
+const invalidKeyError = () => new Error("INVALID_KEY_PROVIDED")
+const invalidTokenError = () => new Error("INVALID_TOKEN_PROVIDED")
+
+
+const createVerify = curry((verifyCreator, key) => {
+    return new Promise(success => {
+        const verifier = verifyCreator(key)
+        success(verifier.verify)
+    })
+})
+
+const verify = curry((verifier, token) => {
+    return verifier(token).catch(() => signatureVerificationFailedError())
+})
+
+const procesKey = curry((processor, key) => {
+    return new Promise(success => {
+        const result = processor(key)
+        success(result)
+    })
+})
+
+const getClaimsSafe = curry((processor, verifyCreator, tokenValidator, keyValidator, key, token) => {
+    if(!keyValidator(key)) {
+        return Promise.reject(invalidKeyError())
     }
-    try {
-        const result = await deps.jose.JWK.asKey(key);
-        const keyVerify = deps.jose.JWS.createVerify(result);
-        const verificationResult = await keyVerify.verify(token);
-        return JSON.parse(verificationResult.payload);
-    }catch(err) {
-       console.log(err)
-       return Promise.reject(new Error("SIGNATURE_VERIFICATION_FAILED"))
+    if(!tokenValidator(token)) {
+        return Promise.reject(invalidTokenError())
     }
-}
+    return procesKey(processor, key)
+    .then(processedKey => createVerify(verifyCreator, processedKey))
+    .then(verifer => verify(verifer, token))
+})
 
 module.exports = {
-    _getClaims,
-    getClaims: _getClaims({jose})
+    signatureVerificationFailedError,
+    invalidKeyError,
+    invalidTokenError,
+    verify,
+    createVerify,
+    procesKey,
+    getClaimsSafe,
+    getClaims: getClaimsSafe(jose.JWK.asKey, jose.JWS.createVerify, isValidToken, isValidKey) 
 }

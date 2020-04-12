@@ -1,54 +1,66 @@
-// const { fetchKeys } = require('../../../../src/opt/nodejs/utils/auth/keys')
+const { 
+    invalidUrlError,
+    failedToFetchKeysError,
+    _fetchKeys,
+    fetchKeysSafe
+ } = require('../../../../src/opt/nodejs/utils/auth/keys')
 
-// const chai = require('chai')
-// const expect = chai.expect
-// const sinon = require("sinon")
-// const axios = require('axios')
-// const MockAdapter = require("axios-mock-adapter");
+const chai = require('chai')
+const expect = chai.expect
+const sinon = require("sinon")
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
 
-// describe("Utils:Auth:keys", function() {
-//     let axiosMock
-//     const keys = [{kid: "key1"}, {kid: "key2"}]
+describe("Utils:Auth:keys", function() {
+    describe("invalidUrlError", function() {
+        it("Should return an error object", () => {
+            expect(invalidUrlError().message).to.equal("INVALID_URL_PROVIDED")
+        })
+    })
 
-//     this.beforeAll(() => {
-//         axiosMock = new MockAdapter(axios);
+    describe("failedToFetchKeysError", function() {
+        it("Should return an error object", () => {
+            expect(failedToFetchKeysError().message).to.equal("FAILED_TO_FETCH_KEYS")
+        })
+    })
 
-//         axiosMock.onGet()
-//         .reply(200, keys)
-//     })
+    describe("fetchKeysSafe", function() {
+        it("Should reject if call to api fails", () => {
+            const apiStub = fake.rejects()
+            expect(fetchKeysSafe(apiStub, "test_url")).to.rejected
+            expect(apiStub.calledOnce).to.be.true
+            expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+        })
 
-//     this.beforeEach(() => {
-//         axiosMock.resetHistory()
-//     })
+        it("Should resolve to the keys array", () => {
+            const mockKeys = ["key1", "key2"]
+            const apiStub = fake.resolves(mockKeys)
+            expect(fetchKeysSafe(apiStub, "test_url")).to.become(mockKeys)
+            expect(apiStub.calledOnce).to.be.true
+            expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+        })
+    })
 
-//     this.afterAll(() => {
-//         axiosMock.restore()
-//     })
+    describe("_fetchKeys", function() {
+        const mockKeys = ["key1", "key2"]
+        it("Should resolve to keys array of url is valid", () => {
+            const apiStub = fake.resolves(mockKeys)
+            const urlValidatorStub = fake.returns(true)
 
-//     it("Should throw error if keys_url is not provided or is invalid", async () => {
-//         try {
-//             await fetchKeys(null)
-//         }catch(err) {
-//             expect(err.message).to.equal("NO_KEYS_URL_PROVIDED")
-//         }
-//     })
+            expect(_fetchKeys(urlValidatorStub, apiStub, "test_url")).to.become(mockKeys)
+            expect(apiStub.calledOnce).to.be.true
+            expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+        })
 
-//     it("Should make a get http request", async () => {
-//         await fetchKeys("test_url")
-//         expect(axiosMock.history.get.length).to.equal(1)
-//     })
+        it("Should rejects if url is invalid", () => {
+            const apiStub = fake.resolves(mockKeys)
+            const urlValidatorStub = fake.returns(false)
 
-//     it("Should make get http request to the correct url", async () => {
-//         const url = `test_url_keys`
-//         await fetchKeys(url)
-//         axiosMock.onPost(url).reply(200, {_id: "ok"})
-//         expect(axiosMock.history.get.length).to.equal(1)
-//     })
-
-//     it("Should return the keys", async () => {
-//         const result = await fetchKeys("test_url")
-//         expect(result).to.deep.equal(keys)
-//     })
-// })
+            expect(_fetchKeys(urlValidatorStub, apiStub, "invalid_url")).to.be.rejected
+            expect(apiStub.calledOnce).to.be.false
+        })
+    })
+})

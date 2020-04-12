@@ -1,35 +1,43 @@
-const { curry, flow } = require('lodash')
-const { Just, Nothing } = require("folktale/maybe")
+const { curry, flow } = require('lodash/fp')
+// const { Just, Nothing } = require("folktale/maybe")
 const jose = require('node-jose');
 const { isValidToken } = require('../validators/index')
 
 
-const split = curry(token => token.split(".").sections[0])
+const invalidTokenError = () => new Error("INVALID_TOKEN_PROVIDED")
 
-const decode = curry((decoder, hash) => {
-    new Promise(success => {
-        const result = decoder(hash)
+const split = curry(token => {
+    return token.split(".")[0]
+})
+
+const decode = curry((decoder, token) => {
+    return new Promise(success => {
+        const result = decoder(split(token))
         success(result)
     })
 })
 
-const parse = curry((header, parser) => parser(header))
+const parse = curry((parser, header) => parser(header))
 
 const getKid = curry(header => header.kid)
 
 
+const extractKeySafe = curry((decoder, parser, token) => {
+        if(isValidToken(token))
+            return decode(decoder, token).then(token => getKid(parse(parser, token)))
+        else 
+            return Promise.reject(invalidTokenError())
+    }
+)
 
-const extractKid = curry((decoder, parser, isValidToken, token) => 
-    isValidToken(token) ? 
-        Just(getKid(
-                parse(
-                    decode(
-                        decoder, 
-                        split(token)), parser))) : 
-        Nothing()
-) 
 
 
 module.exports = {
-    extractKid: extractKid(jose.util.base64url.decode, JSON.parse, isValidToken)
+    extracKid: extractKeySafe(jose.util.base64url.decode, JSON.parse),
+    split,
+    decode,
+    parse,
+    getKid,
+    invalidTokenError,
+    extractKeySafe
 }

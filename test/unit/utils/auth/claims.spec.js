@@ -1,96 +1,98 @@
-// const { _getClaims } = require('../../../../src/opt/nodejs/utils/auth/claims')
+const { 
+    signatureVerificationFailedError,
+    invalidKeyError,
+    invalidTokenError,
+    verify,
+    createVerify,
+    procesKey,
+    getClaimsSafe
+ } = require('../../../../src/opt/nodejs/utils/auth/claims')
 
-// const chai = require('chai')
-// const expect = chai.expect
-// const sinon = require("sinon")
-// const jose = require('node-jose')
-// const fake = sinon.fake
-
-
-
-
-// describe("Utils:Auth:claims", function() {
-//     let mockClaims, verifyStub, 
-//     token, key, getClaims, mockJose
-
-//     token = "xglXdTuw0gTjJWT41CEEg2hNuVAiIEdQkTk.H-839dSn9BRYyxu5UZ7xYA"
-//     key = "test_key"
-//     mockClaims = {
-//         aud: "TEST_AUD",
-//         exp: 2424535646
-//     }
+const chai = require('chai')
+const expect = chai.expect
+const sinon = require("sinon")
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
-    
-
-//     this.beforeAll(() => {
-//     })
-
-//     this.beforeEach(() => {
-//         verifyStub = fake.resolves({payload: JSON.stringify(mockClaims)})
-//         mockJose = {
-//             JWK: {
-//                 asKey: fake.resolves()
-//             },
-//             JWS: {
-//                 createVerify: fake.returns({verify: verifyStub})
-//             }
-//         }
-//         getClaims = _getClaims({jose: mockJose})
-//     })
 
 
-//     it("Should throw error if key or token is not provided", async () => {
-//         try {
-//             await getClaims(null, token)
-//         }catch(err) {
-//             expect(err.message).to.equal("PUBLIC_KEY_OR_TOKEN_NOT_PROVIDED")
-//         }
+describe("Utils:Auth:claims", function() {
+    describe("invalidTokenError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidTokenError().message).to.equal("INVALID_TOKEN_PROVIDED")
+        })
+    })
 
-//         try {
-//             await getClaims(key, null)
-//         }catch(err) {
-//             expect(err.message).to.equal("PUBLIC_KEY_OR_TOKEN_NOT_PROVIDED")
-//         }
-//     })
+    describe("invalidKeyError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidKeyError().message).to.equal("INVALID_KEY_PROVIDED")
+        })
+    })
 
-//     it("Should invoke asKey and pass the key", async () => {
-//         await getClaims(key, token)
-//         expect(mockJose.JWK.asKey.calledOnce).to.be.true
-//     })
+    describe("signatureVerificationFailedError", function() {
+        it("Should create a new error object", () => {
+            expect(signatureVerificationFailedError().message).to.equal("SIGNATURE_VERIFICATION_FAILED")
+        })
+    })
 
-//     it("Should invoke createVerify and pass parsedKey", async () => {
-//         const parsedKey = "test_key"
-//         mockJose.JWK.asKey = fake.resolves(parsedKey)
-//         await getClaims(key, token)
-//         expect(mockJose.JWS.createVerify.calledOnce).to.be.true
-//         expect(mockJose.JWS.createVerify.getCall(0).args[0]).to.equal(parsedKey)
-//     })
+    describe("verify", function() {
+        const mockClaims = {key: "value"}
+        let verifierStub
 
-//     it("Should invoke verify and pass token", async () => {
-//         await getClaims(key, token)
-//         expect(verifyStub.calledOnce).to.be.true
-//         expect(verifyStub.getCall(0).args[0]).to.equal(token)
-//     })
+        it("Should resolve to verified claims", () => {
+            verifierStub = fake.resolves(mockClaims)
+            expect(verify(verifierStub, "test_token")).to.become(mockClaims)
+            expect(verifierStub.calledOnce).to.be.true
+            expect(verifierStub.getCall(0).args[0]).to.equal("test_token")
+        })
 
-//     it("Should return the claims", async () => {
-//         const results = await getClaims(key, token)
-//         expect(results).to.deep.equal(mockClaims)
-//     })
+        it("Should reject when verification fails", () => {
+            verifierStub = fake.rejects()
+            expect(verify(verifierStub, "test_token")).to.be.rejected
+            expect(verifierStub.calledOnce).to.be.true
+            expect(verifierStub.getCall(0).args[0]).to.equal("test_token")
+        })
+    })
 
-//     it("Should throw verification error if any of the methods fail", async () => {
-//         try {
-//             mockJose.JWK.asKey = fake.rejects()
-//             await getClaims(key, token)
-//         }catch(err) {
-//             expect(err.message).to.equal("SIGNATURE_VERIFICATION_FAILED")
-//         }
+    describe("createVerify", function() {
+        const mockVerifier = {verify: "value"}
+        const mockKey = "test_key"
+        let verifyCreatorStub
 
-//         try {
-//             verifyStub = fake.rejects()
-//             await getClaims(key, token)
-//         }catch(err) {
-//             expect(err.message).to.equal("SIGNATURE_VERIFICATION_FAILED")
-//         }
-//     })
-// })
+        it("Should resolve to a verifier", () => {
+            verifyCreatorStub = fake.resolves(mockVerifier.verify)
+            expect(createVerify(verifyCreatorStub, mockKey)).to.become(mockVerifier.verify)
+            expect(verifyCreatorStub.calledOnce).to.be.true
+            expect(verifyCreatorStub.getCall(0).args[0]).to.equal(mockKey)
+        })
+
+        it("Should reject when creating verifier fails", () => {
+            verifyCreatorStub = fake.rejects()
+            expect(createVerify(verifyCreatorStub, mockKey)).to.be.rejected
+            expect(verifyCreatorStub.calledOnce).to.be.true
+            expect(verifyCreatorStub.getCall(0).args[0]).to.equal(mockKey)
+        })
+    })
+
+    describe("processKey", function() {
+        const mockProcessedKey = "test_key"
+        const mockKey = "test_key"
+        let processorStub
+
+        it("Should resolve to processedKey", () => {
+            processorStub = fake.resolves(mockProcessedKey)
+            expect(procesKey(processorStub, mockKey)).to.become(mockProcessedKey)
+            expect(processorStub.calledOnce).to.be.true
+            expect(processorStub.getCall(0).args[0]).to.equal(mockKey)
+        })
+
+        it("Should reject when processing key fails", () => {
+            processorStub = fake.rejects()
+            expect(procesKey(processorStub, mockKey)).to.be.rejected
+            expect(processorStub.calledOnce).to.be.true
+            expect(processorStub.getCall(0).args[0]).to.equal(mockKey)
+        })
+    })
+})
