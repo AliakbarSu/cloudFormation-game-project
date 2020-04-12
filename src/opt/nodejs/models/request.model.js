@@ -1,14 +1,10 @@
-const db = require('../dynamodb.connector');
-const CONSTANTS = require("../constants")
-const uuid = require("uuid")
-const AWS = require('aws-sdk')
 
 
 class RequestModel {
-    constructor(deps) {
-        this.deps = deps
-        const dynamodb = new this.deps.DynamodbConnector({CONSTANTS, AWS: deps.AWS, region: 'us-east-2'})
-        this._connector = dynamodb.connector()
+    constructor(connector, uuid) {
+        console.log(connector, uuid)
+        this.uuid = uuid
+        this._connector = connector.connector()
     }
 
     get connector() {
@@ -21,7 +17,7 @@ class RequestModel {
             return Promise.reject(new Error("INVALID_PLAYERS_DATA"))
         }
         const currentTime = new Date().getTime();
-        const RequestId = this.deps.getId()
+        const RequestId = this.uuid.v4()
         const playersObj = {}
         players.forEach(p => {
             playersObj[p.pid] = {
@@ -32,7 +28,7 @@ class RequestModel {
             }
         })
         const requestParams = {
-            TableName: this.deps.CONSTANTS.DYNAMODB_REQUESTS_TABLE,
+            TableName: process.env.DYNAMODB_REQUESTS_TABLE,
             Item: {
                 _id: RequestId,
                 players: playersObj,
@@ -52,7 +48,7 @@ class RequestModel {
             return Promise.reject(new Error("INVALID_REQUEST_OBJECT"))
         }
         const queryParams = {
-            TableName: this.deps.CONSTANTS.DYNAMODB_REQUESTS_TABLE,
+            TableName: process.env.DYNAMODB_REQUESTS_TABLE,
             KeyConditionExpression: '#requestId = :id',
             FilterExpression: 'active = :active',
             ExpressionAttributeNames: {
@@ -73,7 +69,7 @@ class RequestModel {
         }
         const acceptedAt = new Date().getTime()
         const queryParams = {
-            TableName: this.deps.CONSTANTS.DYNAMODB_REQUESTS_TABLE,
+            TableName: process.env.DYNAMODB_REQUESTS_TABLE,
             Key:{
                 "_id": requestId
             },
@@ -95,4 +91,7 @@ class RequestModel {
     rejectRequest(requestId, pid) {
     }
 }
-module.exports = RequestModel
+module.exports = () => {
+    const bottle = require('bottlejs').pop("click")
+    bottle.service("model.request", RequestModel, "connector.dynamodb", "lib.uuid")
+} 

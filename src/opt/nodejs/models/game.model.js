@@ -1,14 +1,9 @@
-const db = require('../dynamodb.connector');
-const CONSTANTS = require("../constants")
-const uuid = require("uuid")
-const questionsModel = require('./questions.model')
-
 
 class GameModel {
-    constructor(deps) {
-        this.deps = deps;
-        const dynamodb = new this.deps.DynamodbConnector({...deps, region: 'us-east-2'})
-        this._connector = dynamodb.connector()
+    constructor(connector, questionsModel, uuid) {
+        this.questionsModel = questionsModel
+        this.uuid = uuid
+        this._connector = connector.connector()
     }
 
     get connector() {
@@ -21,8 +16,7 @@ class GameModel {
             return Promise.reject(new Error("REQUIRED_DATA_IS_MISSING"))
         }
         const currentTime = new Date().getTime();
-        const questionsModelObj = new this.deps.QuestionModel({...this.deps})
-        const questions = await questionsModelObj.generateQuize({
+        const questions = await this.questionsModel.generateQuize({
             level: gameFilters.level,
             subject: gameFilters.subject, 
             language: gameFilters.language, 
@@ -38,9 +32,9 @@ class GameModel {
             }
         })
         const socketParams = {
-            TableName: this.deps.CONSTANTS.DYNAMODB_GAMES_TABLE,
+            TableName: process.env.DYNAMODB_GAMES_TABLE,
             Item: {
-                _id: this.deps.getId(),
+                _id: this.uuid.v4(),
                 request_id: requestId,
                 players: players,
                 questions: questionsObj,
@@ -57,7 +51,7 @@ class GameModel {
             return Promise.reject(new Error("GAME_ID_IS_INVALID"))
         }
         const queryParams = {
-            TableName: this.deps.CONSTANTS.DYNAMODB_GAMES_TABLE,
+            TableName: process.env.DYNAMODB_GAMES_TABLE,
             KeyConditionExpression: '#gameId = :id',
             FilterExpression: 'active = :active',
             ExpressionAttributeNames: {
@@ -77,7 +71,7 @@ class GameModel {
             return Promise.reject(new Error("INVALID_QUESTION_ID"))
         }
         const queryParams = {
-            TableName: this.deps.CONSTANTS.DYNAMODB_GAMES_TABLE,
+            TableName: process.env.DYNAMODB_GAMES_TABLE,
             Key:{
                 "_id": qid
             },
@@ -92,4 +86,7 @@ class GameModel {
 }
 
 
-module.exports = GameModel
+module.exports = () => {
+    const bottle = require('bottlejs').pop("click")
+    bottle.service("model.game", GameModel, "connector.dynamodb", "model.questions", "lib.uuid")
+}

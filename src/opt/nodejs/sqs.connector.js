@@ -1,15 +1,13 @@
-const AWS = require('aws-sdk')
-const CONSTANTS = require('./constants');
 
 
-class SQS_connector {
-    constructor(deps) {
-      this.deps = deps
+
+class SqsConnector {
+    constructor(aws) {
       this._urls = {
-        pendingRequests: this.deps.CONSTANTS.SQS_PENDINGREQUESTS_URL,
-        scheduleNextQuestion: this.deps.CONSTANTS.SQS_SCHEDULE_NEXT_QUESTION_URL
+        pendingRequests: process.env.SQS_PENDINGREQUESTS_URL,
+        scheduleNextQuestion: process.env.SQS_SCHEDULE_NEXT_QUESTION_URL
       };
-      this.sqs = new this.deps.AWS.SQS({apiVersion: '2012-11-05'});
+      this.sqs = new aws.SQS({apiVersion: '2012-11-05'});
     }
 
     addRequest(requestId, playerIds) {
@@ -76,7 +74,10 @@ class SQS_connector {
 }
 
 
-module.exports = SQS_connector
+module.exports = () => {
+  const bottle = require('bottlejs').pop("click")
+  bottle.service("connector.sqs", SqsConnector, "lib.aws")
+} 
 
 
 

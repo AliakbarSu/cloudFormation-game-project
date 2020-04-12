@@ -1,13 +1,8 @@
-const db = require('../dynamodb.connector');
-const CONSTANTS = require("../constants")
-const uuid = require("uuid")
-
 
 class QuestionsModel {
-    constructor(deps) {
-        this.deps = deps
-        const dynamodb = new this.deps.DynamodbConnector({CONSTANTS, AWS: deps.AWS, region: 'us-east-2'})
-        this._connector = dynamodb.connector()
+    constructor(connector, uuid) {
+        this.uuid = uuid
+        this._connector = connector.connector()
     }
 
     get connector() {
@@ -20,7 +15,7 @@ class QuestionsModel {
             return Promise.reject(new Error("INVALID_QUESTION_FILTERS"))
         }
         const queryParams = {
-            TableName: this.deps.CONSTANTS.DYNAMODB_QUESTIONS_TABLE,
+            TableName: process.env.DYNAMODB_QUESTIONS_TABLE,
             FilterExpression: 'category = :category AND contains(levels, :level) AND #lang = :language',
             ExpressionAttributeNames: {
                 // '#requestId': '_id',
@@ -42,4 +37,7 @@ class QuestionsModel {
     }
 }
 
-module.exports = QuestionsModel
+module.exports = () => {
+    const bottle = require('bottlejs').pop("click")
+    bottle.service("model.questions", QuestionsModel, "connector.dynamodb", "lib.uuid")
+} 

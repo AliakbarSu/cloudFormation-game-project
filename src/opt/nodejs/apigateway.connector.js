@@ -1,18 +1,15 @@
 'use strict';
 
-const aws = require('aws-sdk');
-const CONSTANTS = require('./constants');
-const PlayersModel = require('./models/players')
 
-aws.config.update({region: CONSTANTS.API_GATEWAY_REGION})
 
 class ApiGatewayConnector {
-    constructor(deps) {
-        this.deps = deps
+    constructor(playerModel, aws) {
+        aws.config.update({region: process.env.API_GATEWAY_REGION})
+        this.playerModel = playerModel
         const CONNECTOR_OPTS = {
-            endpoint: this.deps.CONSTANTS.WEBSOCKET_API_ENDPOINT
+            endpoint: process.env.WEBSOCKET_API_ENDPOINT
         };
-        this._connector = new this.deps.AWS.ApiGatewayManagementApi(CONNECTOR_OPTS);
+        this._connector = new aws.ApiGatewayManagementApi(CONNECTOR_OPTS);
     }
 
     get connector() {
@@ -33,7 +30,7 @@ class ApiGatewayConnector {
             console.error('Unable to generate socket message', error);
             if (error.statusCode === 410) {
                 console.log(`Removing stale connector ${connectionId}`);
-                await this.deps.PlayersModel.deregisterConnectionId(connectionId)
+                await this.playerModel.deregisterConnectionId(connectionId)
             }
         }
     }
@@ -50,4 +47,7 @@ class ApiGatewayConnector {
     }
 }
 
-module.exports = ApiGatewayConnector
+module.exports = () => {
+    const bottle = require('bottlejs').pop("click")
+    bottle.service("connector.apigateway", ApiGatewayConnector, "model.player", "lib.aws")
+} 

@@ -1,17 +1,14 @@
 'use strict';
 const mongoose = require('mongoose');
-const CONSTANTS = require('./constants');
 
 
 class MongoDbConnector {
-    constructor(deps) {
-        this.deps = deps
-    }
+    constructor() {}
 
     initialize() {
         if (!MongoDbConnector._connector) {
-            MongoDbConnector._connector = this.deps.mongoose.createConnection(
-                this.deps.CONSTANTS.MONGO_DB_URI, {
+            MongoDbConnector._connector = mongoose.createConnection(
+                process.env.MONGO_DB_URI, {
                 bufferCommands: false, // Disable mongoose buffering
                 bufferMaxEntries: 0 // and MongoDB driver buffering
             });
@@ -27,9 +24,12 @@ class MongoDbConnector {
 }
 
 
-exports.mongoDbConnector = new MongoDbConnector({
-    CONSTANTS,
-    mongoose
-})
 
-exports.MongoDbConnector = MongoDbConnector
+module.exports = () => {
+    const bottle = require('bottlejs').pop("click")
+    bottle.factory("connector.mongo", async function(container) {
+        const mongodbConnector = new MongoDbConnector()
+        const connector = await mongodbConnector.initialize()
+        return connector
+    })
+} 

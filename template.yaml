@@ -430,6 +430,30 @@ Resources:
           PLAYERS_DISTANCE: 100
           SQS_PENDINGREQUESTS_URL: !Ref PendingRequestsQue
           WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
+  acceptRequest:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: acceptRequest
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/acceptRequest
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt MatchPlayersRole.Arn
+      Environment:
+        Variables:
+          API_GATEWAY_REGION: us-east-1
+          DYNAMODB_REQUESTS_TABLE: requests
+          # MongoDBAtlasStack.Outputs.MongoDbURL
+          PLAYERS_DISTANCE: 100
+          SQS_PENDINGREQUESTS_URL: !Ref PendingRequestsQue
+          WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
       # Events:
       #   searchPlayersEventRule:
       #     Type: EventBridgeRule

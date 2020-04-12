@@ -1,35 +1,30 @@
-let resourcesPath = "../opt/nodejs/";
-if(!process.env['DEV']) {
-    resourcesPath = "/opt/nodejs/"
-}
-const RequestModel = require(`${resourcesPath}models/request.model.js`) 
-const utils = require(resourcesPath + "utils/auth.util.js")
+const { curry } = require("lodash")
+const { convertSubToUid } = require("../opt/nodejs/utils/auth/convert-to-sub")
+const { isValidSub } = require('../opt/nodejs/utils/validators/index')
 
-const handler = async (event, context) => {
-    context.callbackWaitsForEmptyEventLoop = false;
-    const token = event.token;
-    const requestId = event.requestId;
-    if(!token || !requestId) {
-        return new Error("Invalid auth token OR Invalid RequestId!")
+
+const handler = curry((requestModel, parseToken, convertSubToUid, event, context) => {
+
+    context.callbackWaitsForEmptyEventLoop = false
+
+    if(!event.token || !event.requestId) {
+        return Promise.reject(new Error("INVALID_PARAMETERS_PROVIDED"))
     }
-    return acceptRequest(requestId, token)
-}
 
+    const token = event.token
+    const requestId = event.requestId
 
-
-
-exports.handler = handler
-
-async function acceptRequest(requestId, token) {
     try {
-        const claims = await utils.parseToken(token);
-        const pid = utils.convertSubToUid(claims.sub);
-        return RequestModel.acceptRequest(requestId, pid);
+        const claims = await parseToken(token)
+        const pid = convertSubToUid(claims.sub);
+        const request = await requestModel.acceptRequest(requestId, pid)
+        return request
     }catch(err) {
-        console.log(err);
-        return new Error("Failed to parse auth token")
-    }
+        console.error(err);
+        return Promise.reject(new Error("FAILED_TO_PROCESS_REQUEST"))
+    } 
+})
+
+module.exports = {
+    handler: handler("requestModel", "parseToken", convertSubToUid(isValidSub))
 }
-
-
-

@@ -1,17 +1,15 @@
 'use strict';
-const cognitosdk = require('amazon-cognito-identity-js');
-const CONSTANTS = require('./constants');
 
 
 
 class CognitoConnector {
-    constructor(deps) {
-        this.deps = deps
+    constructor(cognitosdk) {
+        this.cognitosdk = cognitosdk
         const poolData = {
-            UserPoolId: this.deps.CONSTANTS.COGNITO_USER_POOL,
-            ClientId: this.deps.CONSTANTS.COGNITO_USER_POOL_CLIENT
+            UserPoolId: process.env.COGNITO_USER_POOL || "", 
+            ClientId: process.env.COGNITO_USER_POOL_CLIENT || ""
         };
-        this._userPool = new this.deps.cognitosdk.CognitoUserPool(poolData);
+        this._userPool = new this.cognitosdk.CognitoUserPool(poolData);
     }
 
     async authenticateUser(user, password) {
@@ -24,14 +22,14 @@ class CognitoConnector {
             Password: password
         };
         const authenticationDetails =
-            new this.deps.cognitosdk.AuthenticationDetails(authenticationData);
+            new this.cognitosdk.AuthenticationDetails(authenticationData);
 
         // 2. Generate a CognitoUser object
         const userData = {
             Username: user,
             Pool: this._userPool
         };
-        const cognitoUser = new this.deps.cognitosdk.CognitoUser(userData);
+        const cognitoUser = new this.cognitosdk.CognitoUser(userData);
 
         // 3. Invoke the authenticate method
         return this.authenticate(cognitoUser, authenticationDetails);
@@ -46,10 +44,10 @@ class CognitoConnector {
             Username: user,
             Pool: this._userPool
         };
-        const cognitoUser = new this.deps.cognitosdk.CognitoUser(userData);
+        const cognitoUser = new this.cognitosdk.CognitoUser(userData);
 
         // 2. Generate a RefreshToken object
-        const refreshToken = new this.deps.cognitosdk.CognitoRefreshToken({RefreshToken: token});
+        const refreshToken = new this.cognitosdk.CognitoRefreshToken({RefreshToken: token});
         console.log(refreshToken);
         console.log(refreshToken.getToken());
 
@@ -122,8 +120,8 @@ class CognitoConnector {
 }
 
 
-exports.CognitoConnector = CognitoConnector
-exports.cognitoConnector = new CognitoConnector({
-    CONSTANTS,
-    cognitosdk
-})
+
+module.exports = () => {
+    const bottle = require('bottlejs').pop("click")
+    bottle.service("connector.cognito", CognitoConnector, "lib.cognito")
+} 

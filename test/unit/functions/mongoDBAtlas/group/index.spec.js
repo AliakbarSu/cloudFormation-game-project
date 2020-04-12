@@ -79,7 +79,7 @@ describe("Group::index", function() {
     it("Should invoke sendResponse with FAILED status when function is about to timeout", async () => {
         event.RequestType = "Create"
         event.testProp = "true"
-        context.get_remaining_time_in_millis = () => 50
+        context.getRemainingTimeInMillis = () => 50
         createGroupStub.returns(new Promise((resolve) => setTimeout(() => resolve(group), 100)))
 
         await handler(event, context)

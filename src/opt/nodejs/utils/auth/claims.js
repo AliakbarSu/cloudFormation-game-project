@@ -1,8 +1,8 @@
+const jose = require('node-jose');
 
-
-exports.getClaims = async (key) => {
-    if(!key) {
-        return Promise.reject(new Error("PUBLIC_KEY_NOT_PROVIDED"))
+const _getClaims = deps => async (key, token) => {
+    if(!key || !token) {
+        return Promise.reject(new Error("PUBLIC_KEY_OR_TOKEN_NOT_PROVIDED"))
     }
     try {
         const result = await deps.jose.JWK.asKey(key);
@@ -10,6 +10,12 @@ exports.getClaims = async (key) => {
         const verificationResult = await keyVerify.verify(token);
         return JSON.parse(verificationResult.payload);
     }catch(err) {
+       console.log(err)
        return Promise.reject(new Error("SIGNATURE_VERIFICATION_FAILED"))
     }
+}
+
+module.exports = {
+    _getClaims,
+    getClaims: _getClaims({jose})
 }

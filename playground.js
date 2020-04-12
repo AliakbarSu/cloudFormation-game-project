@@ -1,18 +1,33 @@
-let resourcesPath = "../../../src/opt/nodejs/";
-if(!process.env['DEV']) {
-    resourcesPath = "/opt/nodejs/"
-}
+const { curry, flow } = require('lodash')
+const { Just, Nothing } = require("folktale/maybe")
+const jose = require('node-jose');
+// const { isValidToken } = require('../validators/index')
 
 
-const AxiosDigest = require('axios-digest').AxiosDigest
-const axiosDigest = new AxiosDigest(process.env.API_KEY, process.env.SECRET_KEY)
-const { removeUnrelatedProperties } = require(resourcesPath + 'utils/removeUnrelatedProperties')
+const split = curry(token => token.split(".")[0])
 
-exports.createGroup = (event) => {
-    if(!event || !event.orgId || !event.name) {
-        return Promise.reject(new Error("INVALID_ARGUMENTS_PROVIDED"))
-    }
-    const url = "https://cloud.mongodb.com/api/atlas/v1.0/groups"
-    const params = removeUnrelatedProperties(event)
-    return axiosDigest.post(url, params).then(res => res.data)
-}
+const decode = curry((decoder, hash) => {
+    new Promise(success => {
+        const result = decoder(hash)
+        success(result)
+    })
+})
+
+const parse = curry((header, parser) => parser(header))
+
+const getKid = curry(header => header.kid)
+
+
+
+const extractKid = curry((decoder, parser, isValidToken, token) => 
+    isValidToken(token) ? 
+        Just(getKid(
+                parse(
+                    decode(
+                        decoder, 
+                        split(token)), parser))) : 
+        Nothing()
+) 
+
+
+console.log(extractKid(jose.util.base64url.decode, JSON.parse, () => true)("fjksajfasfjf.klsfjsf"))
