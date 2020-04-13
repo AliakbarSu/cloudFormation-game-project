@@ -1,127 +1,114 @@
-// const CLAIMS = require('../../../../src/opt/nodejs/utils/auth/claims')
-// const KEYS = require('../../../../src/opt/nodejs/utils/auth/keys')
-// const KID = require('../../../../src/opt/nodejs/utils/auth/kid-extractor')
-// const VALIDATOR = require('../../../../src/opt/nodejs/utils/auth/token-validator')
-// const { ParseToken } = require('../../../../src/opt/nodejs/utils/auth/index')
+const { _parseToken, findKey } = require('../../../../src/opt/nodejs/utils/auth/index')
 
-// const chai = require('chai')
-// const expect = chai.expect
-// const sinon = require("sinon")
-
+const chai = require('chai')
+const expect = chai.expect
+const sinon = require("sinon")
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
-// describe("Utils:Auth:index", function() {
-//     let claimsStub, keysStub, kidStub, validatorStub;
 
-//     const claims = {
-//         aud: "testAuth",
-//         exp: "242425424"
-//     }
-//     let token = "test.Token"
-//     const keys = [{kid: "key1"}, {kid: "key2"}]
-//     let kid = "key2"
+describe("Utils:Auth:index", function() {
+    let kid
+    const keys = [{kid: "test1", kid: "test2"}]
 
-//     this.beforeAll(() => {
-//         claimsStub = sinon.stub(CLAIMS, "getClaims").resolves(claims)
-//         keysStub = sinon.stub(KEYS, "fetchKeys").resolves(keys)
-//         kidStub = sinon.stub(KID, "extractKid").returns(kid)
-//         validatorStub = sinon.stub(VALIDATOR, "validate").returns(true)
-//     })
+    describe("findKey", function() {
+        it("Should resolve a kid", (done) => {
+            kid = keys[0].kid
+            expect(findKey(keys, kid)).to.become(keys[0]).notify(done)
+        })
 
-//     this.beforeEach(() => {
-//         claimsStub.resetHistory()
-//         keysStub.resetHistory()
-//         kidStub.resetHistory()
-//         validatorStub.resetHistory()
-//     })
+        it("Should reject if key is not in the keys array", (done) => {
+            kid = "unknown-kid"
+            expect(findKey(keys, kid)).to.rejected.notify(done)
+        })
+    })
 
-//     this.afterEach(() => {
-//         claimsStub.resolves(claims)
-//         keysStub.resolves(keys)
-//         kidStub.returns(kid)
-//         validatorStub.returns(true)
-//     })
+    describe("_parseToken", function() {
+        let mockToken, mockKeysUrl, mockClaims,
+        extracKidStub, fetchKeysStub, getClaimsStub,
+        validateExpiryStub
 
-//     this.afterAll(() => {
-//         claimsStub.restore()
-//         keysStub.restore()
-//         kidStub.restore()
-//         validatorStub.restore()
-//     })
+    
+        this.beforeEach(() => {
+            mockToken = "jfksjfksjfsfjksjfkjsf"
+            mockKeysUrl = "https://test.com"
+            mockClaims = {exp: 'test_exp', aud: "test_aud"}
+            extracKidStub = fake.resolves(keys[0].kid)
+            fetchKeysStub = fake.resolves(keys)
+            getClaimsStub = fake.resolves(mockClaims)
+            validateExpiryStub = fake.resolves()
+        })
 
-//     it("Should throw error if the token is not passed or is invalid", async () => {
-//         try {
-//             await ParseToken(null)
-//         }catch(err) {
-//             expect(err.message).to.equal("INVALID_TOKEN_PROVIDED")
-//         }
-//     })
 
-//     it("Should invoke extracKid and pass the token", async () => {
-//         await ParseToken(token)
-//         expect(kidStub.calledOnce).to.be.true
-//         expect(kidStub.getCall(0).args[0]).to.equal(token)
-//     })
+        it("Should reject if token is invalid", (done) => {
+            expect(_parseToken(
+                extracKidStub, 
+                getClaimsStub, 
+                fetchKeysStub, 
+                validateExpiryStub, 
+                mockKeysUrl, "")).to.be.rejected.notify(done)
+        })
 
-//     it("Should invoke getKeys and pass the keys url", async () => {
-//         process.env.KEYS_URL = "test_url"
-//         await ParseToken(token)
-//         expect(keysStub.calledOnce).to.be.true
-//         expect(keysStub.getCall(0).args[0]).to.equal("test_url")
-//     })
+        it("Should reject if keysUrl is invalid", (done) => {
+            expect(_parseToken(
+                extracKidStub, 
+                getClaimsStub, 
+                fetchKeysStub, 
+                validateExpiryStub, 
+                "", mockToken)).to.be.rejected.notify(done)
+        })
 
-//     it("Should throw error when fetching keys fails", async () => {
-//         const testError = new Error()
-//         try {
-//             keysStub.rejects(testError)
-//             await ParseToken(token)
-//         }catch(err) {
-//             expect(err).to.deep.equal(testError)
-//         }
-//     })
+        it("Should resolve to claims if everything went well", (done) => {
+            expect(_parseToken(
+                extracKidStub, 
+                getClaimsStub, 
+                fetchKeysStub, 
+                validateExpiryStub, 
+                mockKeysUrl, mockToken)).to.become(mockClaims).notify(done)
+        })
 
-//     it("Should throw error when keys do not match", async () => {
-//         try {
-//             kidStub.returns("key5")
-//             await ParseToken(token)
-//         }catch(err) {
-//             expect(err.message).to.equal("PUBLIC_KEY_NOT_FOUND")
-//         }
-//     })
+        it("Should reject if extracKid rejects", (done) => {
+            extracKidStub = fake.rejects()
+            expect(_parseToken(
+                extracKidStub, 
+                getClaimsStub, 
+                fetchKeysStub, 
+                validateExpiryStub, 
+                mockKeysUrl, mockToken)).to.be.rejected.notify(done)
+        })
 
-//     it("Should invoke getClaims and pass the key and token", async () => {
-//         await ParseToken(token)
-//         expect(claimsStub.calledOnce).to.be.true
-//         expect(claimsStub.getCall(0).args[0].kid).to.equal(kid)
-//     })
+        it("Should reject if getClaims rejects", (done) => {
+            getClaimsStub = fake.rejects()
+            expect(_parseToken(
+                extracKidStub, 
+                getClaimsStub, 
+                fetchKeysStub, 
+                validateExpiryStub, 
+                mockKeysUrl, mockToken)).to.be.rejected.notify(done)
+        })
 
-//     it("Should invoke validate and pass the token expiration and aud", async () => {
-//         await ParseToken(token)
-//         expect(validatorStub.calledOnce).to.be.true
-//         expect(validatorStub.getCall(0).args[0]).to.equal(claims.exp)
-//         expect(validatorStub.getCall(0).args[1]).to.equal(claims.aud)
-//     })
+        it("Should reject if fetchKeys rejects", (done) => {
+            fetchKeysStub = fake.rejects()
+            expect(_parseToken(
+                extracKidStub, 
+                getClaimsStub, 
+                fetchKeysStub, 
+                validateExpiryStub, 
+                mockKeysUrl, mockToken)).to.be.rejected.notify(done)
+        })
 
-//     it("Should throw error when token validation fails", async () => {
-//         try {
-//             validatorStub.returns(false)
-//             await ParseToken(token)
-//         }catch(err) {
-//             expect(err.message).to.equal("TOKEN_IS_NOT_VALID")
-//         }
-//     })
+        it("Should reject if validateExpiry rejects", (done) => {
+            validateExpiryStub = fake.rejects()
+            expect(_parseToken(
+                extracKidStub, 
+                getClaimsStub, 
+                fetchKeysStub, 
+                validateExpiryStub, 
+                mockKeysUrl, mockToken)).to.be.rejected.notify(done)
+        })
 
-//     it("Should throw error if claims are invalid", async () => {
-//         try {
-//             claimsStub.resolves(null)
-//             await ParseToken(token)
-//         }catch(err) {
-//             expect(err.message).to.equal("FAILED_TO_FETCH_CLAIMS")
-//         }
-//     })
 
-//     it("Should returns claims", async () => {
-//         const result = await ParseToken(token)
-//         expect(result).to.deep.equal(claims)
-//     })
-// })
+    })
+})

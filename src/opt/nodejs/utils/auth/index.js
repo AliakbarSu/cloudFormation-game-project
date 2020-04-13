@@ -1,46 +1,47 @@
-const KID = require('./kid-extractor')
-const KEYS = require('./keys')
-const CLAIMS = require('./claims')
-const TOKEN_VALIDATOR = require('./token-validator')
+const { extracKid } = require('./kid-extractor')
+const { fetchKeys } = require('./keys')
+const { getClaims } = require('./claims')
+const { checkTokenExpiry } = require('./token-validator')
+const { isValidTokenExp, isValidToken, isValidUrl } = require("../validators/index")
+const { invalidTokenError, failedToParseTokenError, invalidUrlError } = require("../errors/general")
+const { curry } = require('lodash')
 
 
 
-const ParseToken = function() {
-    return async (token) => {
-        if(!token) {
-            return Promise.reject(new Error("INVALID_TOKEN_PROVIDED"))
-        }
-    
-        const kid = KID.extractKid(token)
-        const keys = await KEYS.fetchKeys(process.env.KEYS_URL).catch(err => {
-            console.log("FAILED_TO_FETCH_KEYS: ", err)
-            throw err
-        })
-    
-        const foundKey = keys.find((key) => key.kid === kid);
-    
-        if (!foundKey) {
-            throw new Error("PUBLIC_KEY_NOT_FOUND")
-        }
-        
-        const claims = await CLAIMS.getClaims(foundKey, token)
-    
-        if(!claims) {
-            throw new Error("FAILED_TO_FETCH_CLAIMS")
-        }
-    
-        const isValid = await TOKEN_VALIDATOR.validate(claims.exp, claims.aud)
-    
-        if(isValid !== true) {
-            console.log(isValid)
-            throw new Error("TOKEN_IS_NOT_VALID")    
-        }
-    
-        return claims
+const findKey = curry((keys, kid) => {
+    const foundKey = keys.find((key) => key.kid === kid)
+    if(!foundKey) {
+        return Promise.reject("PUBLIC_KEY_NOT_FOUND")
     }
-}
+    return Promise.resolve(foundKey)
+})
 
-module.exports = () => {
-    const bottle = require('bottlejs').pop("click")
-    bottle.service("utils.parseToken", ParseToken)
+
+const _parseToken = curry(async (extractKid, getClaims, fetchKeys, validateExpiry, keysURL, token) => {
+    if(!isValidToken(token)) {
+        return Promise.reject(invalidTokenError())
+    }
+
+    if(!isValidUrl(keysURL)) {
+        return Promise.reject(invalidUrlError())
+    }
+
+    try {
+        const kid = await extractKid(token)
+        const keys = await fetchKeys(keysURL)
+        const key = await findKey(keys, kid)
+        const claims = getClaims(key, token)
+        await validateExpiry(claims.exp, claims.aud)
+        return claims
+    }catch(err) {
+        return Promise.reject(failedToParseTokenError())
+    }
+
+})
+
+
+module.exports = {
+    findKey,
+    _parseToken,
+    parseToken: _parseToken(extracKid, getClaims, fetchKeys, checkTokenExpiry)
 } 

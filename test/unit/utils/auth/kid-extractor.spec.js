@@ -43,14 +43,14 @@ describe("Utils:Auth:kid-extractor", function() {
         const mockJsonObject = {"key": "value"}
         const decoderStub = () => mockJsonObject
 
-        it("Should resolve to a json object", () => {
-            expect(decode(decoderStub, "")).to.become(mockJsonObject)
+        it("Should resolve to a json object", (done) => {
+            expect(decode(decoderStub, "")).to.become(mockJsonObject).notify(done)
         })
 
-        it("Should reject when decoder fails", () => {
+        it("Should reject when decoder fails", (done) => {
             const mockError = new Error("test_error")
             const decoderStub = () => {throw mockError}
-            expect(decode(decoderStub, "")).to.rejectedWith(mockError)
+            expect(decode(decoderStub, "")).to.rejectedWith(mockError).notify(done)
         })
     })
 
@@ -77,18 +77,18 @@ describe("Utils:Auth:kid-extractor", function() {
         parserStub, mockObject
         
         this.beforeEach(() => {
-            mockJsonObject = {"key": "value"}
-            mockObject = {key: "value"}
+            mockJsonObject = {"kid": "value"}
+            mockObject = {kid: "value"}
             decoderStub = () => mockJsonObject
             parserStub = sinon.fake.returns(mockObject)
         })
 
-        it("Should resolve to the correct kid", () => {
-            expect(extractKeySafe(decoderStub, parserStub, "validToken")).to.become(mockObject.key)
+        it("Should resolve to the correct kid", (done) => {
+            expect(extractKeySafe(decoderStub, parserStub, "validToken")).to.become(mockObject.kid).notify(done)
         })
 
-        it("Should reject if token is invalid", () => {
-            expect(extractKeySafe(decoderStub, parserStub, null)).to.rejected
+        it("Should reject if token is invalid", (done) => {
+            expect(extractKeySafe(decoderStub, parserStub, null)).to.rejected.notify(done)
         })
     })
 

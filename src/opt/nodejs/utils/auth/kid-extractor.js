@@ -24,7 +24,7 @@ const getKid = curry(header => header.kid)
 
 const extractKeySafe = curry((decoder, parser, token) => {
         if(isValidToken(token))
-            return decode(decoder, token).then(token => getKid(parse(parser, token)))
+            return decode(decoder, token).then(header => getKid(parse(parser, header)))
         else 
             return Promise.reject(invalidTokenError())
     }

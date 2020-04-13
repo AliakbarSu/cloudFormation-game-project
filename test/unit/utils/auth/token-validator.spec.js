@@ -44,33 +44,33 @@ describe("Utils:Auth:token-validator", function() {
         let mockClient = "test_cient"
         let mockAud
 
-        it("Should reject if currentTime is greater than expiry time", () => {
+        it("Should reject if currentTime is greater than expiry time", (done) => {
             expiryTime = 9
             mockAud = mockClient
-            expect(validate(currentTime, mockClient, expiryTime, mockAud)).to.be.rejected
+            expect(validate(currentTime, mockClient, expiryTime, mockAud)).to.be.rejected.notify(done)
         })
 
-        it("Should resolve to true", () => {
+        it("Should resolve to true", (done) => {
             expiryTime = 11
             mockAud = mockClient
-            expect(validate(currentTime, mockClient, expiryTime, mockAud)).to.become(true)
+            expect(validate(currentTime, mockClient, expiryTime, mockAud)).to.become(true).notify(done)
         })
 
-        it("Should reject if aud does not match client", () => {
+        it("Should reject if aud does not match client", (done) => {
             expiryTime = 11
             mockAud = "test_aud"
-            expect(validate(currentTime, mockClient, expiryTime, mockAud)).to.be.rejected
+            expect(validate(currentTime, mockClient, expiryTime, mockAud)).to.be.rejected.notify(done)
         })
     })
 
     describe("isTokenExpired", function() {
-        const timeMock = 10000000
+        const timeMock = 1000
         const floorStub = (arg) => arg
-        let expiryTime = 10
+        let expiryTime = 10000000
         let mockClient = "test_cient"
         let mockAud = mockClient
 
-        it("Should resolve to true if token is not expired and issued for the client", () => {
+        it("Should resolve to true if token is not expired and issued for the client", (done) => {
             const tokenValidatorStub = fake.returns(true)
             const audValidatorStub = fake.returns(true)
             expect(isTokenExpired(
@@ -80,10 +80,10 @@ describe("Utils:Auth:token-validator", function() {
                 timeMock, 
                 mockClient, 
                 expiryTime, 
-                mockAud)).to.become(true)
+                mockAud)).to.become(true).notify(done)
         })
 
-        it("Should reject if token expiry is invalid", () => {
+        it("Should reject if token expiry is invalid", (done) => {
             const tokenValidatorStub = fake.returns(false)
             const audValidatorStub = fake.returns(true)
             expect(isTokenExpired(
@@ -93,10 +93,10 @@ describe("Utils:Auth:token-validator", function() {
                 timeMock, 
                 mockClient, 
                 expiryTime, 
-                mockAud)).to.be.rejected
+                mockAud)).to.be.rejected.notify(done)
         })
 
-        it("Should reject if aud is invalid", () => {
+        it("Should reject if aud is invalid", (done) => {
             const tokenValidatorStub = fake.returns(true)
             const audValidatorStub = fake.returns(false)
             expect(isTokenExpired(
@@ -106,7 +106,7 @@ describe("Utils:Auth:token-validator", function() {
                 timeMock, 
                 mockClient, 
                 expiryTime, 
-                mockAud)).to.be.rejected
+                mockAud)).to.be.rejected.notify(done)
         })
 
     })

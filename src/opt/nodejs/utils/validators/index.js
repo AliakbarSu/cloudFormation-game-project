@@ -10,10 +10,10 @@ const isValidTokenExp = exp => exp && exp.length >= 0
 const isValidAud = aud => aud && aud.length >= 0
 
 const isUrlValid = curry((regex, url) => {
-    return url && url.macth(regex)
+    return url && url.match(regex)
 })
 
-const isValidToken = token => token !== null && token.length === 0
+const isValidToken = token => token !== null && !token.length == 0
 
 
 module.exports = {
@@ -23,7 +23,6 @@ module.exports = {
     isValidTokenExp,
     isValidAud,
     isValidKey,
-    isValidUrl: url => isUrlValid(
-        new RegExp(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/),
-        url)
+    isValidUrl: isUrlValid(
+        new RegExp(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/))
 }

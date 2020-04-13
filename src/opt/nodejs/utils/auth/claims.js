@@ -10,14 +10,13 @@ const invalidTokenError = () => new Error("INVALID_TOKEN_PROVIDED")
 
 
 const createVerify = curry((verifyCreator, key) => {
-    return new Promise(success => {
-        const verifier = verifyCreator(key)
-        success(verifier.verify)
-    })
+    return verifyCreator(key)
+        .then(verifier => verifier.verify)
+        .catch(() => Promise.reject(signatureVerificationFailedError()))
 })
 
 const verify = curry((verifier, token) => {
-    return verifier(token).catch(() => signatureVerificationFailedError())
+    return verifier(token).catch(() => Promise.reject(signatureVerificationFailedError()))
 })
 
 const procesKey = curry((processor, key) => {
@@ -27,11 +26,11 @@ const procesKey = curry((processor, key) => {
     })
 })
 
-const getClaimsSafe = curry((processor, verifyCreator, tokenValidator, keyValidator, key, token) => {
-    if(!keyValidator(key)) {
+const getClaimsSafe = curry((processor, verifyCreator, key, token) => {
+    if(!isValidKey(key)) {
         return Promise.reject(invalidKeyError())
     }
-    if(!tokenValidator(token)) {
+    if(!isValidToken(token)) {
         return Promise.reject(invalidTokenError())
     }
     return procesKey(processor, key)
@@ -47,5 +46,5 @@ module.exports = {
     createVerify,
     procesKey,
     getClaimsSafe,
-    getClaims: getClaimsSafe(jose.JWK.asKey, jose.JWS.createVerify, isValidToken, isValidKey) 
+    getClaims: getClaimsSafe(jose.JWK.asKey, jose.JWS.createVerify) 
 }
