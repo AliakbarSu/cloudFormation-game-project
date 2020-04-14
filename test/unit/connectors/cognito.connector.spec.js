@@ -1,407 +1,414 @@
-// let layerPath = "../../../src/opt/nodejs/";
-// if(!process.env['DEV']) {
-//     layerPath = "/opt/nodejs/"
-// }
+const {
+    failedToAuthenticateUserError,
+    failedToGetAccessTokenError,
+    failedToGetAccesTokenMethodError,
+    failedToGetCognitoUserError,
+    failedToGetCompleteNewPasswordChallengeMethodError,
+    failedToGetRefreshTokenMethodError,
+    failedToGetAuthenticateUserMethodError,
+    failedToGetIdTokenError,
+    failedToGetIdTokenMethodError,
+    failedToGetAuthenticationDetailsError,
+    failedToGetRefreshTokenError,
+    failedToGetgetTokenMethodError,
+    failedToRefreshTokenError,
+    failedTogetRefreshSessionMethodError,
+    invalidRefreshSessionMethodError,
+    refreshTokenSafe,
+    refresh,
+    constructAuthenticationData,
+    constructCognitoUserObject,
+    createTokensObject,
+    extractTokenMethods,
+    authenticate,
+    authenticateUserSafe
+} = require('../../../src/opt/nodejs/cognito.connector')
+
+const sinon = require('sinon')
+var chai = require('chai');
+const expect = chai.expect
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
-// const cognitoConnector = require(layerPath + 'cognito.connector')
-// const CONSTANTS = require(layerPath + 'constants')
-// const AWS = require('aws-sdk')
-// const chai = require('chai')
-// const expect = chai.expect
-// const cognitosdk = require('amazon-cognito-identity-js');
-// const sinon = require("sinon")
+
+describe("Cognito Connector", function() {
+    let getAuthenticationDetailsStub, getCognitoUserStub,
+    onSuccessStub, newPasswordRequireStub, onFailureStub,
+    mockUsername, mockPassword, mockUserPool, mockTokenId, mockAccessToken,
+    mockRefreshToken, mockError, mockResult, mockGetAccessToken,
+    mockGetRefreshToken, mockGetIdToken, authenticateUserStub,
+    completeNewPasswordChallengeStub
+
+    this.beforeEach(() => {
+        mockUsername = "test_username"
+        mockPassword = "test_password"
+        mockUserPool = "test_user_pool"
+        mockTokenId = "test_token_id"
+        mockAccessToken = "test_access_token"
+        mockRefreshToken = "test_refresh_token"
+        mockGetAccessToken = fake.returns({getJwtToken: () => mockAccessToken})
+        mockGetRefreshToken = fake.returns({getToken: () => mockRefreshToken})
+        mockGetIdToken = fake.returns({getJwtToken: () => mockTokenId})
+        mockResult = {
+            getAccessToken: mockGetAccessToken,
+            getRefreshToken: mockGetRefreshToken,
+            getIdToken: mockGetIdToken
+        }
+        mockError = new Error("test_error")
+        onFailureStub = fake.returns(mockError)
+        getAuthenticationDetailsStub = fake.returns("test")
+        authenticateUserStub = (authDetails, obj) => {
+            obj.onSuccess(mockResult)
+        }
+        completeNewPasswordChallengeStub = fake.returns()
+        getCognitoUserStub = fake.returns({
+            authenticateUser: authenticateUserStub,
+            completeNewPasswordChallenge: completeNewPasswordChallengeStub
+        })
+    })
+
+    describe("invalidRefreshSessionMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidRefreshSessionMethodError().message)
+            .to.equal("INVALID_REFRESH_SESSION_METHOD_PROVIDED")
+        })
+    })
+
+    describe("failedTogetRefreshSessionMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedTogetRefreshSessionMethodError().message)
+            .to.equal("FAILED_TO_GET_REFRESH_SESSION_METHOD")
+        })
+    })
+
+    describe("failedToRefreshTokenError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToRefreshTokenError().message)
+            .to.equal("FAILED_TO_REFRESH_TOKEN")
+        })
+    })
+
+    describe("failedToGetgetTokenMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetgetTokenMethodError().message)
+            .to.equal("FAILED_TO_GET_GET_TOKEN_METHOD")
+        })
+    })
+
+    describe("failedToAuthenticateUserError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToAuthenticateUserError().message)
+            .to.equal("FAILED_TO_AUTHENTICATE_USER")
+        })
+    })
+
+    describe("failedToGetAccessTokenError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetAccessTokenError().message)
+            .to.equal("FAILED_TO_GET_ACCESS_TOKEN")
+        })
+    })
+
+    describe("failedToGetRefreshTokenError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetRefreshTokenError().message)
+            .to.equal("FAILED_TO_GET_REFRESH_TOKEN_TOKEN")
+        })
+    })
+
+    describe("failedToGetIdTokenError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetIdTokenError().message)
+            .to.equal("FAILED_TO_GET_ID_TOKEN")
+        })
+    })
+
+    describe("failedToGetAccesTokenMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetAccesTokenMethodError().message)
+            .to.equal("FAILED_TO_GET_ACCESS_TOKEN_METHOD")
+        })
+    })
+
+    describe("failedToGetRefreshTokenMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetRefreshTokenMethodError().message)
+            .to.equal("FAILED_TO_GET_REFRESH_TOKEN_METHOD")
+        })
+    })
+
+    describe("failedToGetIdTokenMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetIdTokenMethodError().message)
+            .to.equal("FAILED_TO_GET_ID_TOKEN_METHOD")
+        })
+    })
+
+    describe("failedToGetAuthenticationDetailsError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetAuthenticationDetailsError().message)
+            .to.equal("FAILED_TO_GET_AUTHENTICATION_DETAILS")
+        })
+    })
+
+    describe("failedToGetCognitoUserError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetCognitoUserError().message)
+            .to.equal("FAILED_TO_GET_COGNITO_USER")
+        })
+    })
+
+    describe("failedToGetAuthenticateUserMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetAuthenticateUserMethodError().message)
+            .to.equal("FAILED_TO_GET_AUTHENTICATE_USER_METHOD")
+        })
+    })
+
+    describe("failedToGetCompleteNewPasswordChallengeMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetCompleteNewPasswordChallengeMethodError().message)
+            .to.equal("FAILED_TO_GET_COMPLETE_NEW_PASSWORD_CHALLENGE_METHOD")
+        })
+    })
+
+    describe("createTokensObject", function() {
+        it("Should create an object containing three types of tokens", () => {
+            const result = createTokensObject(mockAccessToken, mockRefreshToken, mockTokenId)
+            expect(result.accessToken).to.equal(mockAccessToken)
+            expect(result.refreshToken).to.equal(mockRefreshToken)
+            expect(result.tokenId).to.equal(mockTokenId)
+        })
+    })
+
+    describe("constructCognitoUserObject", function() {
+        it("Should resolve to an object containing username and pool", async () => {
+            const result = await constructCognitoUserObject(mockUsername, mockUserPool)
+            expect(result.Username).to.equal(mockUsername)
+            expect(result.Pool).to.equal(mockUserPool)
+        })
+
+        it("Should reject if username is invalid", (done) => {
+            mockUsername = ""
+            constructCognitoUserObject(mockUsername, mockUserPool)
+            .catch(err => {
+                expect(err.message).to.equal("INVALID_USERNAME_PROVIDED")
+                done()
+            })
+        })
+
+        it("Should reject if userPool is invalid", (done) => {
+            mockUserPool = ""
+            constructCognitoUserObject(mockUsername, mockUserPool)
+            .catch(err => {
+                expect(err.message).to.equal("INVALID_USER_POOL_PROVIDED")
+                done()
+            })
+        })
+    })
+
+    describe("constructAuthenticationData", function() {
+        it("Should resolve to an object containing username and password", async () => {
+            const result = await constructAuthenticationData(mockUsername, mockPassword)
+            expect(result.Username).to.equal(mockUsername)
+            expect(result.Password).to.equal(mockPassword)
+        })
+
+        it("Should reject if username is invalid", (done) => {
+            mockUsername = ""
+            constructAuthenticationData(mockUsername, mockUserPool)
+            .catch(err => {
+                expect(err.message).to.equal("INVALID_USERNAME_PROVIDED")
+                done()
+            })
+        })
+
+        it("Should reject if userPool is invalid", (done) => {
+            mockPassword = ""
+            constructAuthenticationData(mockUsername, mockPassword)
+            .catch(err => {
+                expect(err.message).to.equal("INVALID_PASSWORD_PROVIDED")
+                done()
+            })
+        })
+    })
 
 
-// xdescribe("Cognito Connector", function() {
+    describe("extractTokenMethods", function() {
+        it("Should reject if getAccessToken is invalid", (done) => {
+            mockResult.getAccessToken = null
+            extractTokenMethods(mockResult)
+            .catch(err => {
+                expect(err.message).to.equal("FAILED_TO_GET_ACCESS_TOKEN_METHOD")
+                done()
+            })
+        })
 
-//     let deps, cognitoConnectorObj;
-//     let cognitoUserPoolStub, cognitoUserStub;
-//     const testPool = "TEST_POOL"
+        it("Should reject if getRefreshToken is invalid", (done) => {
+            mockResult.getRefreshToken = null
+            extractTokenMethods(mockResult)
+            .catch(err => {
+                expect(err.message).to.equal("FAILED_TO_GET_REFRESH_TOKEN_METHOD")
+                done()
+            })
+        })
 
+        it("Should reject if getIdToken is invalid", (done) => {
+            mockResult.getIdToken = null
+            extractTokenMethods(mockResult)
+            .catch(err => {
+                expect(err.message).to.equal("FAILED_TO_GET_ID_TOKEN_METHOD")
+                done()
+            })
+        })
 
-//     deps = {
-//         CONSTANTS,
-//         cognitosdk
-//     }
-
-//     this.beforeAll(() => {
-//         cognitoUserPoolStub = sinon.stub(cognitosdk, "CognitoUserPool").returns(testPool)
-//         cognitoConnectorObj = new cognitoConnector.CognitoConnector(deps)
-//         cognitoUserStub = sinon.stub(cognitosdk, "CognitoUser").returns("fksfj")
-//     })
-
-//     this.beforeEach(() => {
-//         cognitoUserPoolStub.resetHistory()
-//         cognitoUserStub.resetHistory()
-//     })
-
-//     this.afterAll(() => {
-//         cognitoUserStub.restore()
-//     })
-
-//     describe("Create User Pool", function() {
-//         let UserPoolId, ClientId;
-
-//         this.beforeAll(() => {
-//             UserPoolId = "TEST_POOL_ID"
-//             ClientId = "TEST_CLIENT_ID"
-//         })
-
-//         it("Should call CognitoUserPool method", () => {
-//             CONSTANTS.COGNITO_USER_POOL = UserPoolId
-//             CONSTANTS.COGNITO_USER_POOL_CLIENT = ClientId
-//             cognitoConnectorObj = new cognitoConnector.CognitoConnector(deps)
-//             expect(cognitoUserPoolStub.calledOnce).to.be.true
-//             expect(cognitoUserPoolStub.getCall(0).args[0].UserPoolId).to.equal(UserPoolId)
-//             expect(cognitoUserPoolStub.getCall(0).args[0].ClientId).to.equal(ClientId)
-//         })
-//     })
-
-//     describe("authenticateUser", function() {
-//         let testAuthenticationDetails
-//         let AuthenticationDetailsStub
-//         let testUsername = "TEST_USERNAME"
-//         let testPassword = "TEST_PASSWORD"
-
-
-//         this.beforeAll(() => {
-//             testAuthenticationDetails = {token: "TEST_TOKEN"}
-//             AuthenticationDetailsStub = sinon.stub(cognitosdk, "AuthenticationDetails").returns("jksjf")
-//         })
-
-//         this.beforeEach(() => {
-//             AuthenticationDetailsStub.resetHistory()
-//         })
-
-//         this.afterAll(() => {
-//             AuthenticationDetailsStub.restore()
-//         })
-
-//         it("Should throw error if username or password is invalid or missing", async () => {
-//             try {
-//                 await cognitoConnectorObj.authenticateUser(null, testPassword)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-
-//             try {
-//                 await cognitoConnectorObj.authenticateUser(testUsername, null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-//         })
-
-//         it("Should call AuthenticationDetails and pass username and password", async () => {
-//             const authenticateStub = sinon.stub(cognitoConnectorObj, "authenticate").resolves()
-//             await cognitoConnectorObj.authenticateUser(testUsername, testPassword)
-//             expect(AuthenticationDetailsStub.calledOnce).to.be.true
-//             expect(AuthenticationDetailsStub.getCall(0).args[0].Username).to.equal(testUsername)
-//             expect(AuthenticationDetailsStub.getCall(0).args[0].Password).to.equal(testPassword)
-//             authenticateStub.restore()
-//         })
-
-//         it("Should call CognitoUser and pass correct args", async () => {
-//             const authenticateStub = sinon.stub(cognitoConnectorObj, "authenticate").resolves()
-//             await cognitoConnectorObj.authenticateUser(testUsername, testPassword)
-//             expect(cognitoUserStub.calledOnce).to.be.true
-//             expect(cognitoUserStub.getCall(0).args[0].Username).to.equal(testUsername)
-//             expect(cognitoUserStub.getCall(0).args[0].Pool).to.equal(cognitoConnectorObj._userPool)
-//             authenticateStub.restore()
-//         })
-
-//         it("Should call authenticate method and pass cognitoUser and authenticationDetails", async () => {
-//             const testCognitoUser = "TEST_COGNITO_USER"
-//             const testAuthenticationDetails = "TEST_AUTH_DETAILS"
-
-//             AuthenticationDetailsStub.returns({testAuthenticationDetails})
-//             cognitoUserStub.returns({testCognitoUser})
-//             const authenticateStub = sinon.stub(cognitoConnectorObj, "authenticate").resolves()
-
-//             await cognitoConnectorObj.authenticateUser(testUsername, testPassword)
-
-//             expect(authenticateStub.calledOnce).to.be.true
-//             expect(authenticateStub.getCall(0).args[0].testCognitoUser).to.equal(testCognitoUser)
-//             expect(authenticateStub.getCall(0).args[1].testAuthenticationDetails).to.equal(testAuthenticationDetails)
-//             authenticateStub.restore()
-//         })
-//     })
-
-//     describe("refreshToken", function() {
-//         let testToken = "TEST_TOKEN"
-//         let cognitoRefreshTokenStub;
-//         let testUsername = "TEST_USERNAME"
-
-//         this.beforeAll(() => {
-//             cognitoRefreshTokenStub = sinon.stub(cognitosdk, "CognitoRefreshToken").returns({getToken: () => testToken})
-//         })
-
-//         this.beforeEach(() => {
-//             cognitoRefreshTokenStub.resetHistory()
-//         })
-
-//         this.afterAll(() => {
-//             cognitoRefreshTokenStub.restore()
-//         })
-
-//         it("Should throw error if username or token is invalid or missing", async () => {
-//             try {
-//                 await cognitoConnectorObj.refreshToken(null, testToken)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-
-//             try {
-//                 await cognitoConnectorObj.refreshToken(testUsername, null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-//         })
-
-//         it("Should call CognitoUser and pass correct args", async () => {
-//             const refreshStub = sinon.stub(cognitoConnectorObj, "refresh").resolves()
-//             await cognitoConnectorObj.refreshToken(testUsername, testToken)
-//             expect(cognitoUserStub.calledOnce).to.be.true
-//             expect(cognitoUserStub.getCall(0).args[0].Username).to.equal(testUsername)
-//             expect(cognitoUserStub.getCall(0).args[0].Pool).to.equal(cognitoConnectorObj._userPool)
-//             refreshStub.restore()
-//         })
-
-//         it("Should call CognitoRefreshToken and pass username and password", async () => {
-//             const refreshStub = sinon.stub(cognitoConnectorObj, "refresh").resolves()
-//             await cognitoConnectorObj.refreshToken(testUsername, testToken)
-//             expect(cognitoRefreshTokenStub.calledOnce).to.be.true
-//             expect(cognitoRefreshTokenStub.getCall(0).args[0].RefreshToken).to.equal(testToken)
-//             refreshStub.restore()
-//         })
-
-//         it("Should call refresh method and pass cognitoUser and refreshToken", async () => {
-//             const testCognitoUser = "TEST_COGNITO_USER"
-
-//             cognitoUserStub.returns({testCognitoUser})
-//             const refreshStub = sinon.stub(cognitoConnectorObj, "refresh").resolves()
-
-//             await cognitoConnectorObj.refreshToken(testUsername, testToken)
-
-//             expect(refreshStub.calledOnce).to.be.true
-//             expect(refreshStub.getCall(0).args[0].testCognitoUser).to.equal(testCognitoUser)
-//             expect(refreshStub.getCall(0).args[1].getToken()).to.equal(testToken)
-//             refreshStub.restore()
-//         })
-//     })
-
-//     describe("refresh", function() {
-//         let getTokensStub;
-//         let testToken = "TEST_TOKEN"
-//         const testCognitoUser = {
-//             refreshSession: sinon.fake.yields(null, {})
-//         }
-
-//         this.beforeAll(() => {
-//             getTokensStub = sinon.stub(cognitoConnectorObj, "getTokens").returns()
-//         })
-
-//         this.beforeEach(() => {
-//             getTokensStub.resetHistory()
-//         })
-
-//         this.afterAll(() => {
-//             getTokensStub.restore()
-//         })
-
-//         it("Should throw error if cognitoUser or token is invalid or missing", async () => {
-//             try {
-//                 await cognitoConnectorObj.refresh(null, testToken)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-
-//             try {
-//                 await cognitoConnectorObj.refresh(testCognitoUser, null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-//         })
-
-//         it("Should call refreshSession and pass token", async () => {
-//             await cognitoConnectorObj.refresh(testCognitoUser, testToken)
-//             expect(testCognitoUser.refreshSession.calledOnce).to.be.true
-//             expect(testCognitoUser.refreshSession.getCall(0).args[0]).to.equal(testToken)
-//         })
-
-//         it("Should call getTokens and pass session", async () => {
-//             const testSession = "TEST_SESSION"
-//             testCognitoUser.refreshSession = sinon.fake.yields(null, testSession)
-
-//             await cognitoConnectorObj.refresh(testCognitoUser, testToken)
+        it("Should resolve to an object containing three methods", (done) => {
+            extractTokenMethods(mockResult)
+            .then(data => {
+                expect(data.accessToken.getJwtToken()).to.equal(mockAccessToken)
+                expect(data.refreshToken.getToken()).to.equal(mockRefreshToken)
+                expect(data.idToken.getJwtToken()).to.equal(mockTokenId)
+                done()
+            })
             
-//             expect(getTokensStub.calledOnce).to.be.true
-//             expect(getTokensStub.getCall(0).args[0]).to.equal(testSession)
-//         })
+        })
+    })
 
-//         it("Should throw error when refreshSession fails", async () => {
-//             const error = new Error("TEST_ERROR")
-//             testCognitoUser.refreshSession = sinon.fake.yields(error, null)
+    describe("authenticateUserSafe", function() {
+        it("Should resolve to an object containing three types of tokens", async () => {
+            
+            const tokens =  await authenticateUserSafe(
+                getAuthenticationDetailsStub,
+                getCognitoUserStub,
+                mockUserPool, 
+                mockUsername, 
+                mockPassword)
 
-//             try {
-//                 await cognitoConnectorObj.refresh(testCognitoUser, testToken)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal(error.message)
-//             }
-//         })
-//     })
+            expect(tokens.accessToken).to.equal(mockAccessToken)
+            expect(tokens.refreshToken).to.equal(mockRefreshToken)
+            expect(tokens.tokenId).to.equal(mockTokenId)
+           
+        })
 
-//     describe("getTokens", function() {
-//         let getJwtToken, getToken, getAccessToken, getRefreshToken, getIdToken;
-//         let testToken = "TEST_TOKEN"
-//         let authResults = {}
+        it("Should reject if getAuthenticationDetails returns null or undefined", async () => {
+            getAuthenticationDetailsStub = fake.returns(null)
+            try {
+                await authenticateUserSafe(
+                    getAuthenticationDetailsStub,
+                    getCognitoUserStub,
+                    mockUserPool, 
+                    mockUsername, 
+                    mockPassword)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_AUTHENTICATION_DETAILS")
+            }
+        })
 
-//         this.beforeAll(() => {
-//             getJwtToken = sinon.fake.returns(testToken)
-//             getAccessToken = sinon.fake.returns({getJwtToken})
-//             getToken = sinon.fake.returns(testToken)
-//             getRefreshToken = sinon.fake.returns({getToken})
-//             getIdToken = sinon.fake.returns({getJwtToken})
-//         })
+        it("Should reject if getCognitoUser returns null or undefined", async () => {
+            getCognitoUserStub = fake.returns(null)
+            try {
+                await authenticateUserSafe(
+                    getAuthenticationDetailsStub,
+                    getCognitoUserStub,
+                    mockUserPool, 
+                    mockUsername, 
+                    mockPassword)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_COGNITO_USER")
+            }
+        })
 
-//         this.beforeEach(() => {
-//             getJwtToken.resetHistory()
-//             getAccessToken.resetHistory()
-//             getToken.resetHistory()
-//             getIdToken.resetHistory()
-//             getRefreshToken.resetHistory()
+        it("Should reject if authenticateUser is invalid", async () => {
+            getCognitoUserStub = fake.returns({
+                authenticateUser: null,
+                completeNewPasswordChallenge: completeNewPasswordChallengeStub
+            })
+            try {
+                await authenticateUserSafe(
+                    getAuthenticationDetailsStub,
+                    getCognitoUserStub,
+                    mockUserPool, 
+                    mockUsername, 
+                    mockPassword)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_AUTHENTICATE_USER_METHOD")
+            }
+        })
 
-//             authResults.getAccessToken = getAccessToken
-//             authResults.getRefreshToken = getRefreshToken
-//             authResults.getIdToken = getIdToken
-//         })
+        it("Should reject if completeNewPasswordChallenge is invalid", async () => {
+            getCognitoUserStub = fake.returns({
+                authenticateUser: authenticateUserStub,
+                completeNewPasswordChallenge: null
+            })
+            try {
+                await authenticateUserSafe(
+                    getAuthenticationDetailsStub,
+                    getCognitoUserStub,
+                    mockUserPool, 
+                    mockUsername, 
+                    mockPassword)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_COMPLETE_NEW_PASSWORD_CHALLENGE_METHOD")
+            }
+        })
 
-//         it("Should throw error if authResult is invalid or missing", async () => {
-//             try {
-//                 cognitoConnectorObj.getTokens(null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
+        it("Should reject if authenticateUser fails", async () => {
+            const testError = new Error("test_error")
+            authenticateUserStub = (authDetails, obj) => {
+                obj.onFailure(testError)
+            }
+            getCognitoUserStub = fake.returns({
+                authenticateUser: authenticateUserStub,
+                completeNewPasswordChallenge: completeNewPasswordChallengeStub
+            })
+            try {
+                await authenticateUserSafe(
+                    getAuthenticationDetailsStub,
+                    getCognitoUserStub,
+                    mockUserPool, 
+                    mockUsername, 
+                    mockPassword)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err).to.deep.equal(testError)
+            }
+        })
+        // Revisit
+        // it("Should reject if completeNewPasswordChallenge fails", async () => {
+        //     completeNewPasswordChallengeStub = fake.reject()
+        //     try {
+        //         await authenticateUserSafe(
+        //             getAuthenticationDetailsStub,
+        //             getCognitoUserStub,
+        //             mockUserPool, 
+        //             mockUsername, 
+        //             mockPassword)
+        //         throw new Error("FALSE_PASS")
+        //     }catch(err) {
+        //         expect(err.message).to.equal("FAILED_TO_AUTHENTICATE_USER")
+        //     }
+        // })
+        // completeNewPasswordChallenge success case
+        // it("Should reject if completeNewPasswordChallenge fails", async () => {
+        //     completeNewPasswordChallengeStub = fake.reject()
+        //     try {
+        //         await authenticateUserSafe(
+        //             getAuthenticationDetailsStub,
+        //             getCognitoUserStub,
+        //             mockUserPool, 
+        //             mockUsername, 
+        //             mockPassword)
+        //         throw new Error("FALSE_PASS")
+        //     }catch(err) {
+        //         expect(err.message).to.equal("FAILED_TO_AUTHENTICATE_USER")
+        //     }
+        // })
+    })
 
-//             try {
-//                 cognitoConnectorObj.getTokens({})
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-//         })
-
-//         it("Should call authResult.getAccessToken()", () => {
-//             cognitoConnectorObj.getTokens(authResults)
-//             expect(authResults.getAccessToken.calledOnce).to.be.true
-//         })
-
-//         it("Should call authResult.getAccessToken().getJwtToken()", () => {
-//             cognitoConnectorObj.getTokens(authResults)
-//             expect(getJwtToken.callCount).to.equal(2)
-//         })
-
-//         it("Should call authResult.getRefreshToken()", () => {
-//             cognitoConnectorObj.getTokens(authResults)
-//             expect(authResults.getRefreshToken.calledOnce).to.be.true
-//         })
-
-//         it("Should call authResult.getRefreshToken().getToken()", () => {
-//             cognitoConnectorObj.getTokens(authResults)
-//             expect(getToken.calledOnce).to.be.true
-//         })
-
-//         it("Should call authResult.getIdToken()", () => {
-//             cognitoConnectorObj.getTokens(authResults)
-//             expect(authResults.getIdToken.calledOnce).to.be.true
-//         })
-
-//         it("Should call authResult.getIdToken().getJwtToken()", () => {
-//             cognitoConnectorObj.getTokens(authResults)
-//             expect(getJwtToken.callCount).to.equal(2)
-//         })
-
-//         it("Should return correct data", () => {
-//             const expectedData = {
-//                 accessToken: testToken,
-//                 refreshToken: testToken,
-//                 tokenId: testToken
-//             }
-//             const result = cognitoConnectorObj.getTokens(authResults)
-//             expect(result).to.deep.equal(expectedData)
-//         })
-//     })
-
-//     describe("authenticate", function() {
-
-//         const testCognitoUser = {
-//             authenticateUser: sinon.stub().callsFake((authDetails, callbacks) => callbacks.onSuccess(true)),
-//             completeNewPasswordChallenge: sinon.fake.returns()
-//         }
-//         const testAuthenticationDetails = {
-//             getPassword: sinon.stub().returns("TEST_PASSWORD")
-//         }
-
-//         it("Should throw error if cognitoUser or authenticationDetails is invalid or missing", async () => {
-//             try {
-//                 await cognitoConnectorObj.authenticate(null, testAuthenticationDetails)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-
-//             try {
-//                 await cognitoConnectorObj.authenticate(testCognitoUser, null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-//         })
-
-//         it("Should call cognitoUser.authenticateUser() and pass the correct args", async () => {
-//             const getTokensStub = sinon.stub(cognitoConnectorObj, "getTokens").returns()
-//             await cognitoConnectorObj.authenticate(testCognitoUser, testAuthenticationDetails)
-//             expect(testCognitoUser.authenticateUser.calledOnce).to.be.true
-//             getTokensStub.restore()
-//         })
-
-//         it("Should call getTokens and pass the correct args", async () => {
-//             const expectedResult = "OK"
-//             testCognitoUser.authenticateUser = sinon.stub().callsFake((authDetails, callbacks) => callbacks.onSuccess(expectedResult))
-
-//             const getTokensStub = sinon.stub(cognitoConnectorObj, "getTokens").returns()
-//             await cognitoConnectorObj.authenticate(testCognitoUser, testAuthenticationDetails)
-//             expect(testCognitoUser.authenticateUser.calledOnce).to.be.true
-//             expect(getTokensStub.getCall(0).args[0]).to.equal(expectedResult)
-//             getTokensStub.restore()
-//         })
-
-//         it("Should call throw error when cognitoUser.authenticateUser() fails", async () => {
-//             const error = new Error("TEST_ERROR")
-//             testCognitoUser.authenticateUser = sinon.stub().callsFake((authDetails, callbacks) => callbacks.onFailure(error))
-//             try {
-
-//             }catch(err) {
-//                 expect(err.message).to.equal(error.message)
-//             }
-//         })
-
-//         it("Should call cognitoUser.completeNewPasswordChallenge() and pass the password", async () => {
-//             testCognitoUser.authenticateUser = sinon.stub().callsFake((authDetails, callbacks) => 
-//                 callbacks.newPasswordRequired({}, {}))
-
-//             await cognitoConnectorObj.authenticate(testCognitoUser, testAuthenticationDetails)
-
-//             expect(testCognitoUser.completeNewPasswordChallenge.calledOnce).to.be.true
-//             expect(testCognitoUser.completeNewPasswordChallenge.getCall(0).args[0]).to.equal("TEST_PASSWORD")
-//         })
-//     })
-// })
+})

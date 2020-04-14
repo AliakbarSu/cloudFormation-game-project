@@ -1,18 +1,10 @@
 'use strict';
 
 
-class DynamoDbConnector {
-    constructor(aws) {
-        this._connector = new aws.DynamoDB.DocumentClient();
-    }
+const dynamodbConnector = (connector) => connector
 
-    connector() {
-        return this._connector;
-    }
-}
-
-module.exports = () => {
-    const bottle = require('bottlejs').pop("click")
-    bottle.service("connector.dynamodb", DynamoDbConnector, "lib.aws")
+module.exports = {
+    dynamodbConnector,
+    getConnector: options => dynamodbConnector(new aws.DynamoDB.DocumentClient(options))
 }
 

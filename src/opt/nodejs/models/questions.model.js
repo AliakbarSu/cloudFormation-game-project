@@ -1,43 +1,70 @@
+const { curry, get, slice } = require('lodash/fp')
 
-class QuestionsModel {
-    constructor(connector, uuid) {
-        this.uuid = uuid
-        this._connector = connector.connector()
-    }
+const { 
+    isValidCategory,
+    isValidLanguage,
+    isValidLevel,
+    isValidLimit,
+    isValidTableName
+} = require('../utils/validators/index')
 
-    get connector() {
-        return this._connector
-    }
+const uuid = require('uuid')
+const { getConnector } = require('../dynamodb.connector')
+const { invalidTableNameError } = require('../utils/errors/general')
+
+const invalidFiltersDataError = () => new Error("INVALID_FILTERS_PROVIDED")
+const failedToGenerateQuizeError = () => new Error("FAILED_TO_GENERATE_QUIZE")
 
 
-    async generateQuize(filters) {
-        if(!filters || !filters.level || !filters.subject || !filters.language) {
-            return Promise.reject(new Error("INVALID_QUESTION_FILTERS"))
-        }
-        const queryParams = {
-            TableName: process.env.DYNAMODB_QUESTIONS_TABLE,
-            FilterExpression: 'category = :category AND contains(levels, :level) AND #lang = :language',
-            ExpressionAttributeNames: {
-                // '#requestId': '_id',
-                '#lang': 'language'
-            },
-            ExpressionAttributeValues: {
-                ":category": filters.subject,
-                ":level": "Grade " + filters.level,
-                ":language": filters.language
-            }
-        };
-
-        const result = await this._connector.scan(queryParams).promise();
-        if(result.Count >= filters.limit) {
-            return result.Items.slice(0, filters.limit)
-        }else {
-            return result.Items
-        }
-    }
+const validateFilters = filters => {
+    return  isValidCategory(get("subject", filters)) == true &&
+            isValidLanguage(get("language", filters)) == true &&
+            isValidLevel(get("level", filters)) == true &&
+            isValidLimit(get("limit", filters)) == true
 }
 
-module.exports = () => {
-    const bottle = require('bottlejs').pop("click")
-    bottle.service("model.questions", QuestionsModel, "connector.dynamodb", "lib.uuid")
+
+const applyFiltersLimit = curry((items, limit) => {
+    return slice(0, limit, items)
+})
+
+const generateQuizeSafe = curry((connector, IdGenerator, tableName, filters) => {
+    if(!validateFilters(filters)) {
+        return Promise.reject(invalidFiltersDataError())
+    }
+
+    if(!isValidTableName(tableName)) {
+        return Promise.reject(invalidTableNameError())
+    }
+
+    const queryParams = {
+        TableName: tableName,
+        FilterExpression: 'category = :category AND contains(levels, :level) AND #lang = :language',
+        ExpressionAttributeNames: {
+            // '#requestId': '_id',
+            '#lang': 'language'
+        },
+        ExpressionAttributeValues: {
+            ":category": filters.subject,
+            ":level": "Grade " + filters.level,
+            ":language": filters.language
+        }
+    }
+
+    return connector.scan(queryParams).promise().then(result => {
+        if(result.Count >= filters.limit)
+            return applyFiltersLimit(result.Items, filters.limit)
+        else
+            return result.Items
+    }).catch(() => Promise.reject(failedToGenerateQuizeError()))
+})
+
+
+module.exports = {
+    invalidFiltersDataError,
+    failedToGenerateQuizeError,
+    validateFilters,
+    applyFiltersLimit,
+    generateQuizeSafe,
+    generateQuize: generateQuizeSafe(getConnector, uuid.v4, process.env.DYNAMODB_QUESTIONS_TABLE)
 } 

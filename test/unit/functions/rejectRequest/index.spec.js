@@ -1,4 +1,4 @@
-const { acceptRequestHandler } = require('../../../../src/acceptRequest/index')
+const { rejectRequestHandler } = require('../../../../src/rejectRequest/index')
 
 const chai = require('chai');
 const expect = chai.expect
@@ -8,14 +8,14 @@ const chaiAsPromised = require('chai-as-promised')
 chai.use(chaiAsPromised)
 
 
-describe("acceptRequest::index", function() {
-    let acceptRequestStub, parseTokenStub, convertToUidStub,
+describe("rejectRequest::index", function() {
+    let rejectRequestStub, parseTokenStub, convertToUidStub,
     mockEvent, mockContext, mockClaims, mockRequest
 
     this.beforeEach(() => {
         mockRequest = {state: "created"}
         mockClaims = {sub: "test_sub"}
-        acceptRequestStub = fake.resolves(mockRequest)
+        rejectRequestStub = fake.resolves(mockRequest)
         parseTokenStub = fake.resolves(mockClaims)
         convertToUidStub = fake.resolves()
 
@@ -31,8 +31,8 @@ describe("acceptRequest::index", function() {
 
     it("Should reject if invalid token is passed", (done) => {
         mockEvent.token = ""
-        expect(acceptRequestHandler(
-            acceptRequestStub, 
+        expect(rejectRequestHandler(
+            rejectRequestStub, 
             parseTokenStub, 
             convertToUidStub, 
             mockEvent, 
@@ -41,8 +41,8 @@ describe("acceptRequest::index", function() {
 
     it("Should reject if invalid requestId is passed", (done) => {
         mockEvent.requestId = ""
-        expect(acceptRequestHandler(
-            acceptRequestStub, 
+        expect(rejectRequestHandler(
+            rejectRequestStub, 
             parseTokenStub, 
             convertToUidStub, 
             mockEvent, 
@@ -50,8 +50,8 @@ describe("acceptRequest::index", function() {
     })
 
     it("Should resolve to the request object", (done) => {
-        expect(acceptRequestHandler(
-            acceptRequestStub, 
+        expect(rejectRequestHandler(
+            rejectRequestStub, 
             parseTokenStub, 
             convertToUidStub, 
             mockEvent, 
@@ -60,8 +60,8 @@ describe("acceptRequest::index", function() {
 
     it("Should reject if parsing token fails", (done) => {
         parseTokenStub = fake.rejects()
-        expect(acceptRequestHandler(
-            acceptRequestStub, 
+        expect(rejectRequestHandler(
+            rejectRequestStub, 
             parseTokenStub, 
             convertToUidStub, 
             mockEvent, 
@@ -70,18 +70,18 @@ describe("acceptRequest::index", function() {
 
     it("Should reject if convertSubToUid fails", (done) => {
         convertToUidStub = fake.rejects()
-        expect(acceptRequestHandler(
-            acceptRequestStub, 
+        expect(rejectRequestHandler(
+            rejectRequestStub, 
             parseTokenStub, 
             convertToUidStub, 
             mockEvent, 
             mockContext)).to.be.rejected.notify(done)
     })
 
-    it("Should reject if acceptRequest fails", (done) => {
-        acceptRequestStub = fake.rejects()
-        expect(acceptRequestHandler(
-            acceptRequestStub, 
+    it("Should reject if rejectRequest fails", (done) => {
+        rejectRequestStub = fake.rejects()
+        expect(rejectRequestHandler(
+            rejectRequestStub, 
             parseTokenStub, 
             convertToUidStub, 
             mockEvent, 

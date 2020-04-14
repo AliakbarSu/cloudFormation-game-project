@@ -1,30 +1,50 @@
-const { curry } = require("lodash")
-const { convertSubToUid } = require("../opt/nodejs/utils/auth/convert-to-sub")
-const { isValidSub } = require('../opt/nodejs/utils/validators/index')
+let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 
 
-const handler = curry((requestModel, parseToken, convertSubToUid, event, context) => {
+const { curry, get } = require("lodash/fp")
+const { convertSubToUid } = require(layerPath + "utils/auth/convert-to-uid")
+const { 
+    isValidToken, 
+    isValidRequestId } = require(layerPath + 'utils/validators/index')
+const { 
+    failedToProcessAcceptRequestError,
+    invalidTokenError, 
+    invalidRequestIdError } = require(layerPath + 'utils/errors/general')
 
+const { acceptRequest } = require(layerPath + "models/request.model")
+const { parseToken } = require(layerPath + "utils/auth/index")
+
+
+
+const acceptRequestHandler = curry(async (acceptRequest, parseToken, convertSubToUid, event, context) => {
     context.callbackWaitsForEmptyEventLoop = false
 
-    if(!event.token || !event.requestId) {
-        return Promise.reject(new Error("INVALID_PARAMETERS_PROVIDED"))
+    const token = get("token", event)
+    const requestId = get("requestId", event)
+
+    if(!isValidToken(token)) {
+        console.log(invalidTokenError())
+        return Promise.reject(invalidTokenError())
     }
-
-    const token = event.token
-    const requestId = event.requestId
-
+        
+    if(!isValidRequestId(requestId)) {
+        console.log(invalidRequestIdError())
+        return Promise.reject(invalidRequestIdError())
+    }
+        
     try {
-        const claims = await parseToken(token)
-        const pid = convertSubToUid(claims.sub);
-        const request = await requestModel.acceptRequest(requestId, pid)
+        const claims = await parseToken(process.env.KEYS_URL, token)
+        console.log(claims)
+        const pid = await convertSubToUid(get("sub", claims));
+        const request = await acceptRequest(requestId, pid)
         return request
     }catch(err) {
-        console.error(err);
-        return Promise.reject(new Error("FAILED_TO_PROCESS_REQUEST"))
+        console.error(failedToProcessAcceptRequestError(), err);
+        return Promise.reject(failedToProcessAcceptRequestError())
     } 
 })
 
 module.exports = {
-    handler: handler("requestModel", "parseToken", convertSubToUid(isValidSub))
+    acceptRequestHandler,
+    handler: acceptRequestHandler(acceptRequest, parseToken, convertSubToUid)
 }

@@ -2,7 +2,7 @@ const { extracKid } = require('./kid-extractor')
 const { fetchKeys } = require('./keys')
 const { getClaims } = require('./claims')
 const { checkTokenExpiry } = require('./token-validator')
-const { isValidTokenExp, isValidToken, isValidUrl } = require("../validators/index")
+const { isValidToken, isValidUrl } = require("../validators/index")
 const { invalidTokenError, failedToParseTokenError, invalidUrlError } = require("../errors/general")
 const { curry } = require('lodash')
 
@@ -34,6 +34,7 @@ const _parseToken = curry(async (extractKid, getClaims, fetchKeys, validateExpir
         await validateExpiry(claims.exp, claims.aud)
         return claims
     }catch(err) {
+        console.log(err)
         return Promise.reject(failedToParseTokenError())
     }
 

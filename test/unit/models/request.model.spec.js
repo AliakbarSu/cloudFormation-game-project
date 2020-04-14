@@ -1,190 +1,266 @@
-// let layerPath = "../../../src/opt/nodejs/";
-// if(!process.env['DEV']) {
-//     layerPath = "/opt/nodejs/"
-// }
+const {
+    addRequestSafe,
+    convertPlayersToObjectForm,
+    extractRelaventProperties,
+    validatePlayersData,
+    invalidPlayersDataError,
+    failedToAddRequestError,
+    failedToFetchRequestError,
+    failedToPerformAcceptRequestError,
+    invalidRequestIdError,
+    acceptRequestSafe,
+    getPendingRequestSafe,
+} = require('../../../src/opt/nodejs/models/request.model')
+
+const sinon = require('sinon')
+var chai = require('chai');
+const expect = chai.expect
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
-// const DynamodbConnector = require(layerPath + 'dynamodb.connector')
-// const CONSTANTS = require(layerPath + 'constants')
-// const RequestModel = require(layerPath + 'models/request.model')
-// const sinon = require('sinon')
-// var chai = require('chai');
-// const assert = chai.assert
-// const expect = chai.expect
-// const AWS = require('aws-sdk')
+describe("Request Model", function() {
+    let IdGenerator, players, mockConnector, mockCurrentTime,
+    mockRequestId
 
+    this.beforeEach(() => {
+        players = [{
+            pid: "test_pid", 
+            connectionId: "test_connectionId",
+            level: 2, 
+            category: "test_category", 
+            language: "english"
+        }]
+        mockRequestId = "test_id"
+        IdGenerator = fake.returns(mockRequestId)
+        mockConnector = {
+            put: fake.returns({promise: fake.resolves()}),
+            query: fake.returns({promise: fake.resolves()}),
+            update: fake.returns({promise: fake.resolves()})
+        }
+        mockCurrentTime = "242424"
+    })
 
-// xdescribe("Request Model", function() {
+    describe("invalidPlayersDataError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidPlayersDataError().message).to.equal("INVALID_PLAYERS_DATA")
+        })
+    })
 
-//     let deps
-//     let uuidV4Fake = sinon.fake.returns("TEST_ID");
-//     let requestModelObj;
-//     let dynamoDbconnectorStub;
-//     let mockConnector = {}
+    describe("failedToAddRequestError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToAddRequestError().message).to.equal("FAILED_TO_ADD_REQUEST")
+        })
+    })
 
-//     deps = {
-//         DynamodbConnector,
-//         CONSTANTS,
-//         AWS,
-//         getId: uuidV4Fake
-//     }
+    describe("failedToFetchRequestError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToFetchRequestError().message).to.equal("FAILED_TO_FETCH_REQUEST")
+        })
+    })
 
-//     this.beforeAll(() => {
-//         dynamoDbconnectorStub = sinon.stub(DynamodbConnector.prototype, "connector").returns(mockConnector)
-//         requestModelObj = new RequestModel(deps)
-//     })
+    describe("failedToPerformAcceptRequestError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToPerformAcceptRequestError().message).to.equal("FAILED_TO_SET_PLAYER_ACCEPT_REQUEST_TO_TRUE")
+        })
+    })
 
-//     this.beforeEach(() => {
-//     })
+    describe("invalidRequestIdError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidRequestIdError().message).to.equal("INVALID_REQUEST_ID")
+        })
+    })
 
-//     this.afterAll(() => {
-//         dynamoDbconnectorStub.restore()
-//     })
+    describe("convertPlayersToObjectForm", function() {
+        it("Should convert an array to object", () => {
+            const pid = players[0].pid
+            expect(convertPlayersToObjectForm(players)[pid].pid).to.equal(players[0].pid)
+            expect(convertPlayersToObjectForm(players)[pid].connectionId).to.equal(players[0].connectionId)
+            expect(convertPlayersToObjectForm(players)[pid].accepted).to.be.false
+            expect(convertPlayersToObjectForm(players)[pid].accepted_at).to.be.null
+        })
+    })
 
-//     describe("Model Initilization", function() {
-//         it("Should call dynamoDbconnector", () => {
-//             dynamoDbconnectorStub.resetHistory()
-//             new RequestModel(deps)
-//             assert.equal(dynamoDbconnectorStub.calledOnce, true)
-//         })
-//         it("Should return dynamod db connector object", () => {
-//             assert.deepEqual(requestModelObj.connector, mockConnector)
-//         })
-//     })
-//     describe("addRequest", function() {
+    describe("extractRelaventProperties", function() {
+        it("Should convert players array to an object with keys category, level, language", () => {
+            expect(extractRelaventProperties(players).level).to.equal(players[0].level)
+            expect(extractRelaventProperties(players).category).to.equal(players[0].category)
+            expect(extractRelaventProperties(players).language).to.equal(players[0].language)
+        })
+    })
 
-//         const players = [
-//             {
-//                 pid: "TEST_PLAYERS",
-//                 connectionId: "TEST_CON_ID"
-//             }
-//         ]
+    describe("validatePlayersData", function() {
+        it("Should return false if first players language property is invalid", () => {
+            players[0].language = ""
+            expect(validatePlayersData(players)).to.be.false
+        })
 
-//         this.beforeEach(() => {
-//             mockConnector.put = sinon.fake.returns({promise: sinon.fake.resolves()})
-//         })
+        it("Should return false if first players level property is invalid", () => {
+            players[0].level = ""
+            expect(validatePlayersData(players)).to.be.false
+        })
 
-//         it("Should throw error if provided arguments are invalid", async () => {
-//             try {
-//                 await requestModelObj.addRequest()
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 assert.equal(err.message, "INVALID_PLAYERS_DATA")
-//             }
-//         })
+        it("Should return false if first players category property is invalid", () => {
+            players[0].category = ""
+            expect(validatePlayersData(players)).to.be.false
+        })
 
-//         it("Should call dynamodbConnector.put and pass correct args", async () => {
-//             await requestModelObj.addRequest(players)
-//             assert.equal(mockConnector.put.calledOnce, true)
+        it("Should return false if first players connectionId property is invalid", () => {
+            players[0].connectionId = ""
+            expect(validatePlayersData(players)).to.be.false
+        })
 
-//             expect(mockConnector.put.getCall(0).args[0].Item.players, 
-//             "Should contain the player id as object key").to.have.property(players[0].pid)
+        it("Should return true if all players properties are valid", () => {
+            expect(validatePlayersData(players)).to.be.true
+        })
+    })
 
-//             expect(mockConnector.put.getCall(0).args[0].Item.players[players[0].pid]).to.contain.keys("connectionId")
-//         })
+    describe("getPendingRequestSafe", function() {
+        let mockRequestId, mockTablename, mockFetchedRequest
 
-//         it("Should write data to the correct database table", async () => {
-//             CONSTANTS.DYNAMODB_REQUESTS_TABLE = "TEST_TABLE"
-//             await requestModelObj.addRequest(players)
-//             expect(mockConnector.put.getCall(0).args[0].TableName,
-//                 "Should assign the correct database name from CONSTANTS").to.equal("TEST_TABLE")
-//         })
+        this.beforeEach(() => {
+            mockRequestId = "test_request"
+            mockTablename = "test_table"
+            mockFetchedRequest = {Items: ["test"]}
+            mockConnector.query = fake.returns({promise: fake.resolves(mockFetchedRequest)})
+        })
 
-//         it("Should call deps.getId and pass it as _id", async () => {
-//             const test_request_id = "TEST_REQUEST_ID"
-//             uuidV4Fake = sinon.fake.returns(test_request_id)
-//             deps.getId = uuidV4Fake
-//             requestModelObj = new RequestModel(deps)
-//             await requestModelObj.addRequest(players)
-//             expect(uuidV4Fake.calledOnce, "Should call getId").to.be.true
-//             expect(mockConnector.put.getCall(0).args[0].Item._id,
-//                 "Should generate a random id for _id").to.equal(test_request_id)
-//         })
-//     })
+        it("Should reject if request id is invalid", (done) => {
+            expect(getPendingRequestSafe(mockConnector, mockTablename, "")).to.be.rejected.notify(done)
+        })
 
-//     describe("getPendingRequest", function() {
+        it("Should pass correct data to connector.query function", async () => {
+            await getPendingRequestSafe(mockConnector, mockTablename, mockRequestId)
+            expect(mockConnector.query.calledOnce).to.be.true
+            expect(mockConnector.query.getCall(0).args[0].TableName).to.equal(mockTablename)
+            expect(mockConnector.query.getCall(0).args[0].ExpressionAttributeValues[":id"])
+            .to.equal(mockRequestId)
+            expect(mockConnector.query.getCall(0).args[0].ExpressionAttributeValues[":active"])
+            .to.be.true
+        })
 
-//         const testRequest = {
-//             requestId: "TEST_REQUEST"
-//         }
+        it("Should return an array containing the request", (done) => {
+            expect(getPendingRequestSafe(mockConnector, mockTablename, mockRequestId))
+            .to.become(mockFetchedRequest.Items).notify(done)
+        })
 
-//         this.beforeEach(() => {
-//             mockConnector.query = sinon.fake.returns({promise: sinon.fake.resolves()})
-//         })
+        it("Should reject if connector.query fails", (done) => {
+            mockConnector.query = fake.returns({promise: fake.rejects()})
+            expect(getPendingRequestSafe(mockConnector, mockTablename, mockRequestId))
+            .to.be.rejected.notify(done)
+        })
+    })
 
-//         it("Should throw error if request object is not provided", async () => {
-//             try {
-//                 await requestModelObj.getPendingRequest()
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message, "Wrong input data validation error").to.equal("INVALID_REQUEST_OBJECT")
-//             }
-//         })
-//         it("Should throw error if request.requestId is invalid or missing", async () => {
-//             try {
-//                 await requestModelObj.getPendingRequest({})
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message, "Wrong input data validation error").to.equal("INVALID_REQUEST_OBJECT")
-//             }
-//         })
+    describe("acceptRequestSafe", function() {
+        let mockRequestId, mockTablename, mockPlayerId
 
-//         it("Should call dynamodbConnector.query and pass correct args", async () => {
-//             await requestModelObj.getPendingRequest(testRequest)
-//             assert.equal(mockConnector.query.calledOnce, true)
+        this.beforeEach(() => {
+            mockRequestId = "test_request"
+            mockTablename = "test_table"
+            mockPlayerId = "test_player"
+            mockConnector.update = fake.returns({promise: fake.resolves()})
+        })
 
-//             expect(mockConnector.query.getCall(0).args[0].ExpressionAttributeValues, 
-//             "Should pass the correct request id").to.include({":id": testRequest.requestId})
-//         })
+        it("Should reject if request id is invalid", (done) => {
+            expect(acceptRequestSafe(mockConnector, mockTablename, mockCurrentTime, "", mockPlayerId))
+            .to.be.rejected.notify(done)
+        })
 
-//         it("Should write data to the correct database table", async () => {
-//             const tableName = "TEST_TABLE_TWO"
-//             CONSTANTS.DYNAMODB_REQUESTS_TABLE = tableName
-//             await requestModelObj.getPendingRequest(testRequest)
-//             expect(mockConnector.query.getCall(0).args[0].TableName,
-//                 "Should assign the correct database name from CONSTANTS").to.equal(tableName)
-//         })
-//     })
+        it("Should reject if playerId id is invalid", (done) => {
+            expect(acceptRequestSafe(mockConnector, mockTablename, mockCurrentTime, mockRequestId, ""))
+            .to.be.rejected.notify(done)
+        })
 
-//     describe("acceptRequest", function() {
+        it("Should pass correct data to connector.update function", async () => {
+            await acceptRequestSafe(
+                mockConnector, 
+                mockTablename, 
+                mockCurrentTime, 
+                mockRequestId, 
+                mockPlayerId)
 
-//         const requestId = "TEST_REQUEST"
-//         const playerId = "TEST_PLAYER"
+            expect(mockConnector.update.calledOnce).to.be.true
+            expect(mockConnector.update.getCall(0).args[0].TableName).to.equal(mockTablename)
+            expect(mockConnector.update.getCall(0).args[0].ExpressionAttributeValues[":acceptedAt"])
+            .to.equal(mockCurrentTime)
+            expect(mockConnector.update.getCall(0).args[0].ExpressionAttributeValues[":active"])
+            .to.be.true
+        })
 
-//         this.beforeEach(() => {
-//             mockConnector.update = sinon.fake.returns({promise: sinon.fake.resolves()})
-//         })
+        it("Should resolve to 'REQUEST_UPDATED_SUCCESSFULLY'", (done) => {
+            expect(acceptRequestSafe(
+                mockConnector, 
+                mockTablename, 
+                mockCurrentTime, 
+                mockRequestId, 
+                mockPlayerId)).to.become('REQUEST_UPDATED_SUCCESSFULLY').notify(done)
+        })
 
-//         it("Should throw error if requestId or playerId is invalid or missing", async () => {
-//             try {
-//                 await requestModelObj.acceptRequest(null, playerId)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message, "Wrong input data validation error").to.equal("PROVIDED_ARGUMENTS_ARE_INVALID_OR_MISSING")
-//             }
-//             try {
-//                 await requestModelObj.acceptRequest(requestId, null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message, "Wrong input data validation error").to.equal("PROVIDED_ARGUMENTS_ARE_INVALID_OR_MISSING")
-//             }
-//         })
+        it("Should reject if connector.update fails", (done) => {
+            mockConnector.update = fake.returns({promise: fake.rejects()})
+            expect(acceptRequestSafe(
+                mockConnector, 
+                mockTablename, 
+                mockCurrentTime, 
+                mockRequestId, 
+                mockPlayerId)).to.be.rejected.notify(done)
+        })
+    })
 
-//         it("Should call dynamodbConnector.update and pass correct args", async () => {
-//             await requestModelObj.acceptRequest(requestId, playerId)
-//             assert.equal(mockConnector.update.calledOnce, true)
+    describe("addRequestSafe", function() {
 
-//             expect(mockConnector.update.getCall(0).args[0].Key, 
-//             "Should pass the correct request id").to.include({"_id": requestId})
-//         })
+        it("Should reject if players data is invalid", (done) => {
+            players[0].language = ""
+            expect(addRequestSafe(
+                mockConnector, 
+                IdGenerator, 
+                "mock_table", 
+                mockCurrentTime, 
+                players)).to.be.rejected.notify(done)
+        })
 
-//         it("Should write data to the correct database table", async () => {
-//             const tableName = "TEST_TABLE_THREE"
-//             CONSTANTS.DYNAMODB_REQUESTS_TABLE = tableName
-//             await requestModelObj.acceptRequest(requestId, playerId)
-//             expect(mockConnector.update.getCall(0).args[0].TableName,
-//                 "Should assign the correct database name from CONSTANTS").to.equal(tableName)
-//         })
-//     })
+        it("Should resolve to request id", (done) => {
+            expect(addRequestSafe(
+                mockConnector, 
+                IdGenerator, 
+                "mock_table", 
+                mockCurrentTime, 
+                players)).to.become(mockRequestId).notify(done)
+        })
 
-// })
+        it("Should pass correct data to connector.put function", async () => {
+            const pid = players[0].pid
+            await addRequestSafe(
+                mockConnector, 
+                IdGenerator, 
+                "mock_table", 
+                mockCurrentTime, 
+                players)
+
+            expect(mockConnector.put.calledOnce).to.be.true
+            expect(mockConnector.put.getCall(0).args[0].TableName).to.equal("mock_table")
+            expect(mockConnector.put.getCall(0).args[0].Item.active).to.be.true
+            expect(mockConnector.put.getCall(0).args[0].Item.created_at).to.equal(mockCurrentTime)
+            expect(mockConnector.put.getCall(0).args[0].Item.updated_at).to.equal(mockCurrentTime)
+            expect(mockConnector.put.getCall(0).args[0].Item.players[pid].pid)
+            .to.equal(pid)
+            expect(mockConnector.put.getCall(0).args[0].Item.players[pid].accepted)
+            .to.be.false
+            expect(mockConnector.put.getCall(0).args[0].Item.players[pid].accepted_at)
+            .to.be.null
+        })
+
+        it("Should reject if adding request fails", (done) => {
+            mockConnector.put = fake.returns({promise: fake.rejects()})
+            expect(addRequestSafe(
+                mockConnector, 
+                IdGenerator, 
+                "mock_table",
+                mockCurrentTime, 
+                players)).to.be.rejected.notify(done)
+        })
+
+    })
+    
+})

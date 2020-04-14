@@ -1,97 +1,186 @@
+const { curry, get } = require('lodash/fp')
+
+const { 
+    isValidPid,
+    isValidCategory,
+    isValidConnectionId,
+    isValidLanguage,
+    isValidLevel,
+    isValidRequestId
+} = require('../utils/validators/index')
+
+const uuid = require('uuid')
+const { getConnector } = require('../dynamodb.connector')
+const { invalidPidError } = require('../utils/errors/general')
 
 
-class RequestModel {
-    constructor(connector, uuid) {
-        console.log(connector, uuid)
-        this.uuid = uuid
-        this._connector = connector.connector()
-    }
-
-    get connector() {
-        return this._connector
-    }
+const invalidPlayersDataError = () => new Error("INVALID_PLAYERS_DATA")
+const invalidRequestIdError = () => new Error("INVALID_REQUEST_ID")
+const failedToAddRequestError = () => new Error("FAILED_TO_ADD_REQUEST")
+const failedToFetchRequestError = () => new Error("FAILED_TO_FETCH_REQUEST")
+const failedToPerformAcceptRequestError = () => new Error("FAILED_TO_SET_PLAYER_ACCEPT_REQUEST_TO_TRUE")
+const failedToPerformRejectRequestError = () => new Error("FAILED_TO_SET_PLAYER_ACCEPT_REQUEST_TO_FALSE")
 
 
-    addRequest(players) {
-        if(!players || players.length == 0) {
-            return Promise.reject(new Error("INVALID_PLAYERS_DATA"))
-        }
-        const currentTime = new Date().getTime();
-        const RequestId = this.uuid.v4()
-        const playersObj = {}
-        players.forEach(p => {
-            playersObj[p.pid] = {
-                pid: p.pid,
-                connectionId: p.connectionId,
-                accepted: false,
-                accepted_at: null
-            }
-        })
-        const requestParams = {
-            TableName: process.env.DYNAMODB_REQUESTS_TABLE,
-            Item: {
-                _id: RequestId,
-                players: playersObj,
-                level: players[0].level,
-                category: players[0].category,
-                language: players[0].language,
-                created_at: currentTime,
-                updated_at: currentTime,
-                active: true
-            }
-        };
-        return this._connector.put(requestParams).promise().then(() => RequestId);
-    }
-
-    getPendingRequest(request) {
-        if(!request || !request.requestId) {
-            return Promise.reject(new Error("INVALID_REQUEST_OBJECT"))
-        }
-        const queryParams = {
-            TableName: process.env.DYNAMODB_REQUESTS_TABLE,
-            KeyConditionExpression: '#requestId = :id',
-            FilterExpression: 'active = :active',
-            ExpressionAttributeNames: {
-                '#requestId': '_id',
-            },
-            ExpressionAttributeValues: {
-                ':id': request.requestId,
-                ':active': true
-            }
-        };
-
-        return this._connector.query(queryParams).promise();
-    }
-
-    acceptRequest(requestId, pid) {
-        if(!requestId || !pid || pid.length == 0 || requestId.length == 0) {
-            return Promise.reject(new Error("PROVIDED_ARGUMENTS_ARE_INVALID_OR_MISSING"))
-        }
-        const acceptedAt = new Date().getTime()
-        const queryParams = {
-            TableName: process.env.DYNAMODB_REQUESTS_TABLE,
-            Key:{
-                "_id": requestId
-            },
-            ConditionExpression: 'active = :active AND attribute_exists(players.#playerId.pid)',
-            UpdateExpression: "set players.#playerId.accepted = :acceptedValue, players.#playerId.accepted_at = :acceptedAt",
-            ExpressionAttributeNames: {
-                '#playerId': pid
-            },
-            ExpressionAttributeValues: {
-                ':active': true,
-                ":acceptedAt": acceptedAt,
-                ":acceptedValue": true,
-            }
-        };
-
-        return this._connector.update(queryParams).promise();
-    }
-
-    rejectRequest(requestId, pid) {
+const extractRelaventProperties = players => {
+    return {
+        category: players[0].category,
+        level: players[0].level,
+        language: players[0].language
     }
 }
-module.exports = () => {
-    const bottle = require('bottlejs').pop("click")
-    bottle.service("model.request", RequestModel, "connector.dynamodb", "lib.uuid")
-} 
+
+const convertPlayersToObjectForm = players => {
+    const playersObj = {}
+    players.forEach(p => {
+        playersObj[p.pid] = {
+            pid: p.pid,
+            connectionId: p.connectionId,
+            accepted: false,
+            accepted_at: null
+        }
+    })
+    return playersObj
+}
+
+const validatePlayersData = players => {
+    const invalid = players.find(player => {
+        return !isValidPid(player.pid) ||
+        !isValidCategory(player.category) ||
+        !isValidLanguage(player.language) ||
+        !isValidConnectionId(player.connectionId) ||
+        !isValidLevel(player.level)
+    })
+    console.log(invalid)
+    return invalid == null
+}
+
+
+const addRequestSafe = curry((connector, IDGenerator, tableName, currentTime, data) => {
+    if(!validatePlayersData(data)) {
+        return Promise.reject(invalidPlayersDataError())
+    }
+
+    const requestId = IDGenerator()
+    const players = convertPlayersToObjectForm(data)
+    const relaventProperties = extractRelaventProperties(data) 
+    const requestParams = {
+        TableName: tableName,
+        Item: {
+            _id: requestId,
+            players: players,
+            level: get("level", relaventProperties),
+            category: get("category", relaventProperties),
+            language: get("language", relaventProperties),
+            created_at: currentTime,
+            updated_at: currentTime,
+            active: true
+        }
+    }
+    return connector.put(requestParams).promise().then(() => requestId)
+    .catch(() => Promise.reject(failedToAddRequestError()))
+})
+
+
+const getPendingRequestSafe = curry((connector, tableName, requestId) => {
+    if(!isValidRequestId(requestId)) {
+        return Promise.reject(invalidRequestIdError())
+    }
+
+    const queryParams = {
+        TableName: tableName,
+        KeyConditionExpression: '#requestId = :id',
+        FilterExpression: 'active = :active',
+        ExpressionAttributeNames: {
+            '#requestId': '_id',
+        },
+        ExpressionAttributeValues: {
+            ':id': requestId,
+            ':active': true
+        }
+    }
+
+    return connector.query(queryParams).promise().then(data => get("Items", data))
+    .catch(() => Promise.reject(failedToFetchRequestError()))
+})
+
+const acceptRequestSafe = curry((connector, tableName, currentTime, requestId, playerId) => {
+    if(!isValidRequestId(requestId)) {
+        return Promise.reject(invalidRequestIdError())
+    }
+
+    if(!isValidPid(playerId)) {
+        return Promise.reject(invalidPidError())
+    }
+
+    const queryParams = {
+        TableName: tableName,
+        Key:{
+            "_id": requestId
+        },
+        ConditionExpression: 'active = :active AND attribute_exists(players.#playerId.pid)',
+        UpdateExpression: "set players.#playerId.accepted = :acceptedValue, players.#playerId.accepted_at = :acceptedAt",
+        ExpressionAttributeNames: {
+            '#playerId': playerId
+        },
+        ExpressionAttributeValues: {
+            ':active': true,
+            ":acceptedAt": currentTime,
+            ":acceptedValue": true,
+        }
+    }
+
+    return connector.update(queryParams).promise().then(() => "REQUEST_UPDATED_SUCCESSFULLY")
+    .catch(() => Promise.reject(failedToPerformAcceptRequestError()))
+})
+
+const rejectRequestSafe = curry((connector, tableName, currentTime, requestId, playerId) => {
+    if(!isValidRequestId(requestId)) {
+        return Promise.reject(invalidRequestIdError())
+    }
+
+    if(!isValidPid(playerId)) {
+        return Promise.reject(invalidPidError())
+    }
+
+    const queryParams = {
+        TableName: tableName,
+        Key:{
+            "_id": requestId
+        },
+        ConditionExpression: 'active = :active AND attribute_exists(players.#playerId.pid)',
+        UpdateExpression: "set players.#playerId.accepted = :acceptedValue, players.#playerId.accepted_at = :acceptedAt",
+        ExpressionAttributeNames: {
+            '#playerId': playerId
+        },
+        ExpressionAttributeValues: {
+            ':active': true,
+            ":acceptedAt": null,
+            ":acceptedValue": false,
+        }
+    }
+
+    return connector.update(queryParams).promise().then(() => "REQUEST_UPDATED_SUCCESSFULLY")
+    .catch(() => Promise.reject(failedToPerformRejectRequestError()))
+})
+
+
+
+module.exports = {
+    acceptRequestSafe,
+    failedToPerformAcceptRequestError,
+    addRequestSafe,
+    getPendingRequestSafe,
+    convertPlayersToObjectForm,
+    extractRelaventProperties,
+    validatePlayersData,
+    invalidPlayersDataError,
+    failedToAddRequestError,
+    invalidRequestIdError,
+    failedToFetchRequestError,
+    addRequest: addRequestSafe(getConnector, uuid.v4, process.env.DYNAMODB_REQUESTS_TABLE, new Date().getTime()),
+    getPendingRequest: getPendingRequestSafe(getConnector, process.env.DYNAMODB_REQUESTS_TABLE),
+    acceptRequest: acceptRequestSafe(getConnector, process.env.DYNAMODB_REQUESTS_TABLE, new Date().getTime()),
+    rejectRequest: rejectRequestSafe(getConnector, process.env.DYNAMODB_REQUESTS_TABLE, new Date().getTime()),
+}
+

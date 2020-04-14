@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test:unit": "DEV=true nyc --reporter=text mocha --recursive './test/unit/**/*.js'",
+    "test:unit": "DEV=true nyc --reporter=text mocha --bail --recursive './test/unit/**/*.js'",
     "test:int": "DEV=true nyc --reporter=text mocha --recursive './test/int/**/*.js'",
     "update-layer": "sudo ./update-layer.sh",
     "update-function": "./update-function.sh",

@@ -4,7 +4,9 @@ const {
     decode,
     getKid,
     invalidTokenError,
-    extractKeySafe
+    extractKeySafe,
+    failedToDecodeTokenError,
+    failedToParseHeaderError
  } = require('../../../../src/opt/nodejs/utils/auth/kid-extractor')
 
 const chai = require('chai')
@@ -29,6 +31,17 @@ describe("Utils:Auth:kid-extractor", function() {
 
     token = "xglXdTuw0gTjJWT41CEEg2hNuVAiIEdQkTk.H-839dSn9BRYyxu5UZ7xYA"
 
+    describe("failedToDecodeTokenError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToDecodeTokenError().message).to.equal("FAILED_TO_DECODE_TOKEN")
+        })
+    })
+
+    describe("failedToParseHeaderError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToParseHeaderError().message).to.equal("FAILED_TO_PARSE_HEADER")
+        })
+    })
 
     describe("split", function() {
         it("split string into an array at . delimator and return the first slice", () => {
@@ -48,20 +61,28 @@ describe("Utils:Auth:kid-extractor", function() {
         })
 
         it("Should reject when decoder fails", (done) => {
-            const mockError = new Error("test_error")
             const decoderStub = () => {throw mockError}
-            expect(decode(decoderStub, "")).to.rejectedWith(mockError).notify(done)
+            expect(decode(decoderStub, "")).to.rejected.notify(done)
         })
     })
 
     describe("parse", function() {
-        it("Should return a javascript object", () => {
+        it("Should resolve to a javascript object", (done) => {
             const mockObject = {key: "value"}
             const mockJsonObject = {"key": "value"}
             const parserStub = fake.returns(mockObject)
-            expect(parse(parserStub, mockJsonObject)).to.deep.equal(mockObject)
-            expect(parserStub.calledOnce).to.be.true
-            expect(parserStub.getCall(0).args[0]).to.deep.equal(mockJsonObject)
+            parse(parserStub, mockJsonObject).then(data => {
+                expect(data).to.deep.equal(mockObject)
+                expect(parserStub.calledOnce).to.be.true
+                expect(parserStub.getCall(0).args[0]).to.deep.equal(mockJsonObject)
+                done()
+            })
+        })
+
+        it("Should reject when parser fails", (done) => {
+            const mockJsonObject = {"key": "value"}
+            const parserStub = () => {throw mockError}
+            expect(parse(parserStub, mockJsonObject)).to.rejected.notify(done)
         })
     })
 

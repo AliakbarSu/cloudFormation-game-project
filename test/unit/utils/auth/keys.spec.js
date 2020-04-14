@@ -30,17 +30,22 @@ describe("Utils:Auth:keys", function() {
     describe("fetchKeysSafe", function() {
         it("Should reject if call to api fails", (done) => {
             const apiStub = fake.rejects()
-            expect(fetchKeysSafe(apiStub, "test_url")).to.rejected.notify(done)
-            expect(apiStub.calledOnce).to.be.true
-            expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+            fetchKeysSafe(apiStub, "test_url").catch(err => {
+                expect(apiStub.calledOnce).to.be.true
+                expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+                done()    
+            })
         })
 
         it("Should resolve to the keys array", (done) => {
             const mockKeys = ["key1", "key2"]
             const apiStub = fake.resolves(mockKeys)
-            expect(fetchKeysSafe(apiStub, "test_url")).to.become(mockKeys).notify(done)
-            expect(apiStub.calledOnce).to.be.true
-            expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+            fetchKeysSafe(apiStub, "test_url").then(data => {
+                expect(data).to.deep.equal(mockKeys)
+                expect(apiStub.calledOnce).to.be.true
+                expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+                done()
+            })
         })
     })
 
@@ -50,17 +55,22 @@ describe("Utils:Auth:keys", function() {
             const apiStub = fake.resolves(mockKeys)
             const urlValidatorStub = fake.returns(true)
 
-            expect(_fetchKeys(urlValidatorStub, apiStub, "test_url")).to.become(mockKeys).notify(done)
-            expect(apiStub.calledOnce).to.be.true
-            expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+            _fetchKeys(urlValidatorStub, apiStub, "test_url").then(data => {
+                expect(data).to.deep.equal(mockKeys)
+                expect(apiStub.calledOnce).to.be.true
+                expect(apiStub.getCall(0).args[0]).to.equal("test_url")
+                done()
+            })
         })
 
         it("Should rejects if url is invalid", (done) => {
             const apiStub = fake.resolves(mockKeys)
             const urlValidatorStub = fake.returns(false)
 
-            expect(_fetchKeys(urlValidatorStub, apiStub, "invalid_url")).to.be.rejected.notify(done)
-            expect(apiStub.calledOnce).to.be.false
+            _fetchKeys(urlValidatorStub, apiStub, "invalid_url").catch(err => {
+                expect(apiStub.calledOnce).to.be.false
+                done()
+            })
         })
     })
 })

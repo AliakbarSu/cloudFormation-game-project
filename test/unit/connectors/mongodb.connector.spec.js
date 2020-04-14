@@ -1,53 +1,193 @@
-// let layerPath = "../../../src/opt/nodejs/";
-// if(!process.env['DEV']) {
-//     layerPath = "/opt/nodejs/"
-// }
+const {
+    invalidBufferCommandError,
+    invalidBufferMaxEntriesError,
+    invalidMongoDbURIConStringError,
+    validateBufferCommands,
+    validateBufferMaxEntries,
+    validateConnectionString,
+    createConnection,
+    createConnectionObject,
+    getConnectionSafe
+} = require("../../../src/opt/nodejs/mongodb.connector")
 
-// const mongodbConnector = require(layerPath + 'mongodb.connector')
-// const CONSTANTS = require(layerPath + 'constants')
-// const mongoose = require('mongoose')
-// const chai = require('chai')
-// const expect = chai.expect
-// const sinon = require("sinon")
+const sinon = require('sinon')
+var chai = require('chai');
+const expect = chai.expect
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
-// xdescribe("MongoDB Connector", function() {
+describe("MongoDB Connector", function() {
+    let mockCurrentConnection, mockCreateConnection,
+    mockBufferCommands, mockBufferMaxEntries,
+    mockURI, mockConnection
 
-//     let deps, mongodbConnectionObj;
-//     let createConnectionStub;
-//     const testConnection = "TEST_CONNECTION"
+    this.beforeEach(() => {
+        mockConnection = "test_connection"
+        mockCurrentConnection = "test_currentConnection"
+        mockURI = "test_uri",
+        mockBufferCommands = true,
+        mockBufferMaxEntries = 2
+        mockCreateConnection = fake.resolves(mockConnection)
+    })
 
-//     deps = {
-//         CONSTANTS,
-//         mongoose
-//     }
+    describe("invalidBufferCommandError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidBufferCommandError().message).to.equal("INVALID_BUFFER_COMMAND")
+        })
+    })
 
-//     this.beforeAll(() => {
-//         createConnectionStub = sinon.stub(mongoose, "createConnection").resolves(testConnection)
-//         mongodbConnectionObj = new mongodbConnector.MongoDbConnector(deps)
-//     })
+    describe("invalidBufferMaxEntriesError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidBufferMaxEntriesError().message).to.equal("INVALID_BUFFER_MAX_ENTRIES")
+        })
+    })
 
-//     describe("initialize", function() {
-//         it("Should create one instance of mongoose connection",  async () => {
-//             await mongodbConnectionObj.initialize()
-//             await mongodbConnectionObj.initialize()
-//             expect(createConnectionStub.callCount).to.equal(1)
-//         })
+    describe("invalidMongoDbURIConStringError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidMongoDbURIConStringError().message).to.equal("INVALID_MONGO_DB_CONNECTION_STRING")
+        })
+    })
 
-//         it("Should pass the correct connection string to createConnection", async () => {
-//             const connectionString = "TEST_STRING"
-//             CONSTANTS.MONGO_DB_URI = connectionString
-//             mongodbConnector.MongoDbConnector._connector = null;
-//             mongodbConnectionObj = new mongodbConnector.MongoDbConnector(deps)
-//             await mongodbConnectionObj.initialize()
-//             expect(createConnectionStub.getCall(1).args[0]).to.equal(connectionString)
+    describe("validateBufferCommands", function() {
+        it("Should return false if value is not boolean", () => {
+            mockBufferCommands = "2"
+            expect(validateBufferCommands(mockBufferCommands)).to.be.false
+        })
+        it("Should return false if value is empty", () => {
+            mockBufferCommands = ""
+            expect(validateBufferCommands(mockBufferCommands)).to.be.false
+        })
+        it("Should return true if value is a boolean", () => {
+            mockBufferCommands = true
+            expect(validateBufferCommands(mockBufferCommands)).to.be.true
+        })
+    })
 
-//         })
-//     })
+    describe("validateBufferMaxEntries", function() {
+        it("Should return false if value is not a number", () => {
+            mockBufferMaxEntries = "two"
+            expect(validateBufferMaxEntries(mockBufferMaxEntries)).to.be.false
+        })
+        it("Should return false if value is empty", () => {
+            mockBufferMaxEntries = ""
+            expect(validateBufferMaxEntries(mockBufferMaxEntries)).to.be.false
+        })
+        it("Should return true if value is an integer", () => {
+            mockBufferMaxEntries = 2
+            expect(validateBufferMaxEntries(mockBufferMaxEntries)).to.be.true
+        })
+    })
 
-//     describe("connection", function() {
-//         it("Should return _connector property", async () => {
-//             await mongodbConnectionObj.initialize()
-//             expect(await mongodbConnectionObj.connection()).to.equal(testConnection)
-//         })
-//     })
-// })
+    describe("validateConnectionString", function() {
+        it("Should return false if value is null", () => {
+            mockURI = null
+            expect(validateConnectionString(mockURI)).to.be.false
+        })
+        it("Should return false if value is empty string", () => {
+            mockURI = ""
+            expect(validateConnectionString(mockURI)).to.be.false
+        })
+        it("Should return true if value is a valid uri string", () => {
+            mockURI = "test_uri"
+            expect(validateConnectionString(mockURI)).to.be.true
+        })
+    })
+
+    describe("createConnectionObject", function() {
+        let mockConnectionObject
+
+        this.beforeEach(() => {
+            mockConnectionObject = {
+                bufferCommands: mockBufferCommands,
+                bufferMaxEntries: mockBufferMaxEntries
+            }
+        })
+
+        it("Should return an object containing the config params", () => {
+            expect(createConnectionObject(
+                mockBufferCommands, 
+                mockBufferMaxEntries).bufferCommands)
+            .to.equal(mockBufferCommands)
+            expect(createConnectionObject(
+                mockBufferCommands, 
+                mockBufferMaxEntries).bufferMaxEntries)
+            .to.equal(mockBufferMaxEntries)
+        })
+
+        it("Should return a connection string", (done) => {
+            expect(createConnection(
+                mockCreateConnection, 
+                mockURI, 
+                mockConnectionObject)).to.become(mockConnection).notify(done)
+            expect(mockCreateConnection.calledOnce).to.be.true
+        })
+
+        it("Should return reject when createConnection fails", (done) => {
+            mockCreateConnection = fake.rejects()
+            expect(createConnection(
+                mockCreateConnection, 
+                mockURI, 
+                mockConnectionObject)).to.be.rejected.notify(done)
+        })
+    })
+
+    describe("getConnectionSafe", function() {
+        it("Should reject if connection string is invalid", (done) => {
+            expect(getConnectionSafe(
+                mockCurrentConnection, 
+                mockCreateConnection, 
+                mockBufferCommands, 
+                mockBufferMaxEntries, 
+                "")).to.be.rejected.notify(done)
+        })
+        it("Should reject if bufferCommands is invalid", (done) => {
+            expect(getConnectionSafe(
+                mockCurrentConnection, 
+                mockCreateConnection, 
+                "", 
+                mockBufferMaxEntries, 
+                mockURI)).to.be.rejected.notify(done)
+        })
+        it("Should reject if bufferMaxEntries is invalid", (done) => {
+            expect(getConnectionSafe(
+                mockCurrentConnection, 
+                mockCreateConnection, 
+                mockBufferCommands, 
+                "", 
+                mockURI)).to.be.rejected.notify(done)
+        })
+
+        it("Should resolve to a new connection if currentConnection is null", (done) => {
+            mockCurrentConnection = null
+            getConnectionSafe(
+                mockCurrentConnection, 
+                mockCreateConnection, 
+                mockBufferCommands, 
+                mockBufferMaxEntries, 
+                mockURI).then(data => {
+                    expect(data).to.equal(mockConnection)
+                    expect(mockCreateConnection.calledOnce).to.be.true
+                    expect(mockCreateConnection.getCall(0).args[0]).to.be.equal(mockURI)
+                    expect(mockCreateConnection.getCall(0).args[1].bufferCommands)
+                    .to.equal(mockBufferCommands)
+                    done()
+                })
+        })
+
+        it("Should resolve to currentConnection if currentConnection is not null", (done) => {
+            getConnectionSafe(
+                mockCurrentConnection, 
+                mockCreateConnection, 
+                mockBufferCommands, 
+                mockBufferMaxEntries, 
+                mockURI).then(data => {
+                    expect(data).to.equal(mockCurrentConnection)
+                    expect(mockCreateConnection.calledOnce).to.be.false
+                    done()
+                })
+                
+        })
+    })
+})      
+

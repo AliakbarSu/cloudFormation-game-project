@@ -68,16 +68,22 @@ describe("Utils:Auth:claims", function() {
 
         it("Should resolve to verified claims", (done) => {
             verifierStub = fake.resolves(mockClaims)
-            expect(verify(verifierStub, "test_token")).to.become(mockClaims).notify(done)
-            expect(verifierStub.calledOnce).to.be.true
-            expect(verifierStub.getCall(0).args[0]).to.equal("test_token")
+            verify(verifierStub, "test_token").then(data => {
+                expect(data).to.deep.equal(mockClaims)
+                expect(verifierStub.calledOnce).to.be.true
+                expect(verifierStub.getCall(0).args[0]).to.equal("test_token")
+                done()
+            })
+            
         })
 
         it("Should reject when verification fails", (done) => {
             verifierStub = fake.rejects()
-            expect(verify(verifierStub, "test_token")).to.be.rejected.notify(done)
-            expect(verifierStub.calledOnce).to.be.true
-            expect(verifierStub.getCall(0).args[0]).to.equal("test_token")
+            verify(verifierStub, "test_token").catch(err => {
+                expect(verifierStub.calledOnce).to.be.true
+                expect(verifierStub.getCall(0).args[0]).to.equal("test_token")
+                done()
+            })
         })
     })
 
@@ -88,16 +94,21 @@ describe("Utils:Auth:claims", function() {
 
         it("Should resolve to a verifier", (done) => {
             verifyCreatorStub = fake.resolves(mockVerifier)
-            expect(createVerify(verifyCreatorStub, mockKey)).to.become(mockVerifier.verify).notify(done)
-            expect(verifyCreatorStub.calledOnce).to.be.true
-            expect(verifyCreatorStub.getCall(0).args[0]).to.equal(mockKey)
+            createVerify(verifyCreatorStub, mockKey).then(data => {
+                expect(data).to.equal(mockVerifier.verify)
+                expect(verifyCreatorStub.calledOnce).to.be.true
+                expect(verifyCreatorStub.getCall(0).args[0]).to.equal(mockKey)
+                done()
+            })
         })
 
         it("Should reject when creating verifier fails", (done) => {
             verifyCreatorStub = fake.rejects()
-            expect(createVerify(verifyCreatorStub, mockKey)).to.be.rejected.notify(done)
-            expect(verifyCreatorStub.calledOnce).to.be.true
-            expect(verifyCreatorStub.getCall(0).args[0]).to.equal(mockKey)
+            createVerify(verifyCreatorStub, mockKey).catch(err => {
+                expect(verifyCreatorStub.calledOnce).to.be.true
+                expect(verifyCreatorStub.getCall(0).args[0]).to.equal(mockKey)
+                done()
+            })
         })
     })
 
@@ -108,16 +119,21 @@ describe("Utils:Auth:claims", function() {
 
         it("Should resolve to processedKey", (done) => {
             processorStub = fake.resolves(mockProcessedKey)
-            expect(procesKey(processorStub, mockKey)).to.become(mockProcessedKey).notify(done)
-            expect(processorStub.calledOnce).to.be.true
-            expect(processorStub.getCall(0).args[0]).to.equal(mockKey)
+            procesKey(processorStub, mockKey).then(data => {
+                expect(data).to.equal(mockProcessedKey)
+                expect(processorStub.calledOnce).to.be.true
+                expect(processorStub.getCall(0).args[0]).to.equal(mockKey)
+                done()
+            })
         })
 
         it("Should reject when processing key fails", (done) => {
             processorStub = fake.rejects()
-            expect(procesKey(processorStub, mockKey)).to.be.rejected.notify(done)
-            expect(processorStub.calledOnce).to.be.true
-            expect(processorStub.getCall(0).args[0]).to.equal(mockKey)
+            procesKey(processorStub, mockKey).catch(err => {
+                expect(processorStub.calledOnce).to.be.true
+                expect(processorStub.getCall(0).args[0]).to.equal(mockKey)
+                done()
+            })
         })
     })
 })

@@ -1,113 +1,126 @@
-// let layerPath = "../../../src/opt/nodejs/";
-// if(!process.env['DEV']) {
-//     layerPath = "/opt/nodejs/"
-// }
+const { 
+    invalidFiltersDataError,
+    failedToGenerateQuizeError,
+    validateFilters,
+    generateQuizeSafe,
+    applyFiltersLimit
+ } = require('../../../src/opt/nodejs/models/questions.model')
+
+const sinon = require('sinon')
+var chai = require('chai');
+const expect = chai.expect
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
+
+describe("QuestionsModel", function() {
+
+    let filters, result, mockConnector, mockRequestId, IdGenerator
+
+    this.beforeEach(() => {
+        filters = {
+            subject: "test_subject",
+            language: "test_language",
+            level: 2,
+            limit: 1
+        }
+
+        result = {Count: 2, Items: ["first", "second"]}
+
+        mockRequestId = "test_id"
+        IdGenerator = fake.returns(mockRequestId)
+        mockConnector = {
+            scan: fake.returns({promise: fake.resolves(result)})
+        }
+    })
+
+    describe("invalidFiltersDataError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidFiltersDataError().message).to.equal("INVALID_FILTERS_PROVIDED")
+        })
+    })
+
+    describe("failedToGenerateQuizeError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGenerateQuizeError().message).to.equal("FAILED_TO_GENERATE_QUIZE")
+        })
+    })
+
+    describe("validateFilters", function() {
+        it("Should return false if filters language property is invalid", () => {
+            filters.language = ""
+            expect(validateFilters(filters)).to.be.false
+        })
+
+        it("Should return false if filters level property is invalid", () => {
+            filters.level = ""
+            expect(validateFilters(filters)).to.be.false
+        })
+
+        it("Should return false if filters subject property is invalid", () => {
+            filters.subject = ""
+            expect(validateFilters(filters)).to.be.false
+        })
+
+        it("Should return false if filters level property is invalid", () => {
+            filters.limit = ""
+            expect(validateFilters(filters)).to.be.false
+        })
+
+        it("Should return true if all players properties are valid", () => {
+            expect(validateFilters(filters)).to.be.true
+        })
+    })
+
+    describe("applyFiltersLimit", function() {
+        it("Should slice an array according to the limit value", () => {
+            expect(applyFiltersLimit(result.Items, 1).length).to.equal(1)
+            expect(applyFiltersLimit(result.Items, 1)).to.deep.equal([result.Items[0]])
+        })
+    })
 
 
-// const DynamodbConnector = require(layerPath + 'dynamodb.connector')
-// const CONSTANTS = require(layerPath + 'constants')
-// const QuestionsModel = require(layerPath + 'models/questions.model')
-// const sinon = require('sinon')
-// var chai = require('chai');
-// const assert = chai.assert
-// const uuid = require('uuid')
-// const AWS = require('aws-sdk')
+    describe("generateQuizeSafe", function() {
+        let mockTablename
 
+        this.beforeEach(() => {
+            mockTablename = "test_table"
+        })
 
-// xdescribe("QuestionsModel", function() {
+        it("Should reject if table name is invalid", (done) => {
+            mockTablename = ""
+            expect(generateQuizeSafe(mockConnector, IdGenerator, mockTablename, filters))
+            .to.be.rejected.notify(done)
+        })
 
-//     let deps
-//     let uuidV4Fake = sinon.fake.returns("TEST_ID");
-//     let questionsModelObj;
-//     let dynamoDbconnectorStub;
-//     let mockConnector = {put: "test"}
+        it("Should reject if filters object is invalid", (done) => {
+            filters.language = ""
+            expect(generateQuizeSafe(mockConnector, IdGenerator, mockTablename, filters))
+            .to.be.rejected.notify(done)
+        })
 
-//     deps = {
-//         DynamodbConnector,
-//         getId: uuid.v4,
-//         AWS,
-//         CONSTANTS,
-//         getId: uuidV4Fake
-//     }
+        it("Should pass correct data to connector.scan function", async () => {
+            await generateQuizeSafe(mockConnector, IdGenerator, mockTablename, filters)
+            expect(mockConnector.scan.calledOnce).to.be.true
+            expect(mockConnector.scan.getCall(0).args[0].TableName).to.equal(mockTablename)
+            expect(mockConnector.scan.getCall(0).args[0].ExpressionAttributeValues[":category"])
+            .to.equal(filters.subject)
+            expect(mockConnector.scan.getCall(0).args[0].ExpressionAttributeValues[":level"])
+            .to.equal("Grade " + filters.level)
+            expect(mockConnector.scan.getCall(0).args[0].ExpressionAttributeValues[":language"])
+            .to.equal(filters.language)
+        })
 
-//     this.beforeAll(() => {
-//         dynamoDbconnectorStub = sinon.stub(DynamodbConnector.prototype, "connector").returns(mockConnector)
-//         questionsModelObj = new QuestionsModel(deps)
-        
-//     })
+        it("Should return an array containing only one item", (done) => {
+            filters.limit = 1
+            expect(generateQuizeSafe(mockConnector, IdGenerator, mockTablename, filters))
+            .to.become([result.Items[0]]).notify(done)
+        })
 
-//     this.beforeEach(() => {
-//         mockConnector.put = sinon.fake.returns({promise: sinon.fake.resolves()})
-//     })
-
-//     this.afterEach(() => {
-//         uuidV4Fake.resetHistory()
-//     })
-
-//     this.afterAll(() => {
-//         dynamoDbconnectorStub.restore()
-//     })
-
-//     describe("Model Initilization", function() {
-
-//         it("Should call dynamoDbconnector", () => {
-//             dynamoDbconnectorStub.resetHistory()
-//             new QuestionsModel(deps)
-//             assert.equal(dynamoDbconnectorStub.calledOnce, true)
-//         })
-//         it("Should return dynamod db connector object", () => {
-//             assert.deepEqual(questionsModelObj.connector, mockConnector)
-//         })
-//     })
-
-//     describe("generateQuize", function() {
-//         let returnedResults = {
-//             Count: 1,
-//             Items: []
-//         }
-//         let questionFilters = {
-//             level: 1,
-//             subject: "general",
-//             language: "english",
-//             limit: 5
-//         }
-
-//         this.beforeEach(() => {
-//             mockConnector.scan = sinon.fake.returns({promise: sinon.fake.resolves(returnedResults)})
-//         })
-
-//         it("Should throw error if questionFilters are invalid or null", async () => {
-//             try {
-//                 await questionsModelObj.generateQuize({})
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 assert.equal(err.message, "INVALID_QUESTION_FILTERS")
-//             }
-//         })
-
-//         it("Should call dynamodbconnector.scan and pass correct args", async () => {
-//             CONSTANTS.DYNAMODB_QUESTIONS_TABLE = "TEST_TABLE"
-//             await questionsModelObj.generateQuize(questionFilters)
-//             assert.equal(mockConnector.scan.calledOnce, true)
-//             assert.equal(mockConnector.scan.getCall(0).args[0].TableName, "TEST_TABLE")
-//             assert.deepInclude(mockConnector.scan.getCall(0).args[0].ExpressionAttributeValues, {":language": questionFilters.language})
-//         })
-
-//         it("Should return the correct number of items", async () => {
-//             questionFilters.limit = 2
-//             returnedResults.Count = 3
-//             returnedResults.Items = ["itemOne", "itemTwo", "itemThree", "itemFour"]
-//             mockConnector.scan = sinon.fake.returns({promise: sinon.fake.resolves(returnedResults)})
-//             const result = await questionsModelObj.generateQuize(questionFilters)
-//             assert.equal(result.length, 2)
-
-//             questionFilters.limit = 4
-//             returnedResults.Count = 1
-//             returnedResults.Items = ["itemOne"]
-//             mockConnector.scan = sinon.fake.returns({promise: sinon.fake.resolves(returnedResults)})
-//             const resultTwo = await questionsModelObj.generateQuize(questionFilters)
-//             assert.equal(resultTwo.length, 1)
-//         })
-//     })
-
-// })
+        it("Should reject if connector.scan fails", (done) => {
+            mockConnector.scan = fake.returns({promise: fake.rejects()})
+            expect(generateQuizeSafe(mockConnector, IdGenerator, mockTablename, filters))
+            .to.be.rejected.notify(done)
+        })
+    })
+})

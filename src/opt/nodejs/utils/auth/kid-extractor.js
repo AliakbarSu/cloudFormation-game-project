@@ -5,26 +5,39 @@ const { isValidToken } = require('../validators/index')
 
 
 const invalidTokenError = () => new Error("INVALID_TOKEN_PROVIDED")
+const failedToParseHeaderError = () => new Error("FAILED_TO_PARSE_HEADER")
+const failedToDecodeTokenError = () => new Error("FAILED_TO_DECODE_TOKEN")
 
 const split = curry(token => {
     return token.split(".")[0]
 })
 
 const decode = curry((decoder, token) => {
-    return new Promise(success => {
+    try {
         const result = decoder(split(token))
-        success(result)
-    })
+        return Promise.resolve(result)
+    }catch(err) {
+        return Promise.reject(failedToDecodeTokenError())
+    }
 })
 
-const parse = curry((parser, header) => parser(header))
+const parse = curry((parser, header) => {
+    try {
+        return Promise.resolve(parser(header))
+    }catch(err) {
+        return Promise.reject(failedToParseHeaderError())
+    }
+    
+})
 
 const getKid = curry(header => header.kid)
 
 
 const extractKeySafe = curry((decoder, parser, token) => {
         if(isValidToken(token))
-            return decode(decoder, token).then(header => getKid(parse(parser, header)))
+            return decode(decoder, token)
+            .then(header => parse(parser, header))
+            .then(parsedHeader => getKid(parsedHeader))
         else 
             return Promise.reject(invalidTokenError())
     }
@@ -39,5 +52,7 @@ module.exports = {
     parse,
     getKid,
     invalidTokenError,
-    extractKeySafe
+    extractKeySafe,
+    failedToDecodeTokenError,
+    failedToParseHeaderError
 }
