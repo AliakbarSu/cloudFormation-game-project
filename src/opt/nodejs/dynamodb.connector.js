@@ -1,5 +1,5 @@
 'use strict';
-
+const aws = require('aws-sdk')
 
 const dynamodbConnector = (connector) => connector
 

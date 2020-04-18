@@ -1,132 +1,312 @@
-// let layerPath = "../../../src/opt/nodejs/";
-// if(!process.env['DEV']) {
-//     layerPath = "/opt/nodejs/"
-// }
+const {
+    failedToAddRequestError,
+    failedToConvertIdsToJsonError,
+    failedToGetSendMessageMethodError,
+    failedToSqueduleNextQuestionError,
+    invalidParamsError,
+    invalidPlayerIdsError,
+    invalidSendMethodError,
+    constructQuestionObject,
+    constructRequestObject,
+    convertIdsToJson,
+    sendMessage,
+    addRequestSafe,
+    scheduleNextQuestionSafe,
+    validatePlayerIds
+} = require('../../../src/opt/nodejs/sqs.connector')
 
-// const sqsConnector = require(layerPath + 'sqs.connector')
-// const CONSTANTS = require(layerPath + 'constants')
-// const AWS = require('aws-sdk')
-// const chai = require('chai')
-// const expect = chai.expect
-// const sinon = require("sinon")
+
+const sinon = require('sinon')
+var chai = require('chai');
+const expect = chai.expect
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
 
-// xdescribe("SQS Connector, sqs.connector.js", function() {
-//     let deps;
-//     let sqsConnectorObj;
-//     let sqsStub;
-//     let mockSQS = {}
-    
-//     deps = {
-//         CONSTANTS,
-//         AWS: AWS
-//     }
+describe("SQS Connector", function() {
+    let mockDelaySeconds, mockRequestId, mockPlayerIds,
+    mockGameId, mockMessageBody, mockQueueUrl, sendMessageStub,
+    sqsStub, stringifierStub, mockPlayerIdsJson, mockResponse
 
-//     this.beforeAll(() => {
-//         sqsConnectorObj = new sqsConnector(deps)
-//     })
+    this.beforeEach(() => {
+        mockDelaySeconds = 2
+        mockRequestId = "test_request_id"
+        mockPlayerIds = ["id1", "id2"]
+        mockPlayerIdsJson = '["id1", "id2"]'
+        mockGameId = "test_game"
+        mockMessageBody = "test_message_body"
+        mockQueueUrl = "http://test@url.com"
+        mockResponse = "test_response"
+        stringifierStub = fake.returns(mockPlayerIdsJson)
+        sendMessageStub = fake.yields(null, mockResponse)
+        sqsStub = {
+            sendMessage: sendMessageStub
+        }
+    })
 
-//     this.afterAll(() => {
-//         sqsStub.restore()
-//     })
 
-//     describe("Module Initialization", function() {
-//         this.beforeAll(() => {
-//             sqsStub = sinon.stub(AWS, "SQS").callsFake(() => mockSQS)
-//         })
-//         it("Should call AWS.SQS.constructor", () => {
-//             sqsConnectorObj = new sqsConnector(deps)
-//             expect(sqsStub.calledOnce).to.be.true
-//         })
-//     })
+    describe("failedToAddRequestError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToAddRequestError().message)
+            .to.equal("FAILED_TO_ADD_REQUEST")
+        })
+    })
 
-//     describe("addRequest", function() {
+    describe("failedToConvertIdsToJsonError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToConvertIdsToJsonError().message)
+            .to.equal("FAILED_TO_CONVERT_IDS_TO_JSON")
+        })
+    })
 
-//         const requestId = "TEST_REQUEST"
-//         const playerIds = ["P_ONE", "P_TWO", "P_THREE"]
-//         const createdMessage = {
-//             MessageId: "TEST_MESSAGE"
-//         }
+    describe("failedToGetSendMessageMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetSendMessageMethodError().message)
+            .to.equal("FAILED_TO_GET_SEND_MESSAGE_METHOD")
+        })
+    })
 
-//         this.beforeEach(() => {
-//             mockSQS.sendMessage = sinon.fake.yields(null, createdMessage)
-//         })
+    describe("failedToSqueduleNextQuestionError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToSqueduleNextQuestionError().message)
+            .to.equal("FAILED_TO_SCHEDULE_NEXT_QUESTION")
+        })
+    })
 
-//         it("Should throw error if requestId or playerIds is not provided or is invalid", async () => {
-//             try {
-//                 await sqsConnectorObj.addRequest(null, playerIds)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-//             }
+    describe("invalidParamsError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidParamsError().message)
+            .to.equal("INVALID_PARAMS_ERROR")
+        })
+    })
 
-//             try {
-//                 await sqsConnectorObj.addRequest(requestId, null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-//             }
+    describe("invalidPlayerIdsError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidPlayerIdsError().message)
+            .to.equal("PLAYER_IDS_ARRAY_CONTAINS_INVALID_ID")
+        })
+    })
 
-//             try {
-//                 await sqsConnectorObj.addRequest(requestId, [])
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-//             }
-//         })
+    describe("invalidParamsError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidParamsError().message)
+            .to.equal("INVALID_PARAMS_ERROR")
+        })
+    })
 
-//         it("Should call sqsConnector.sendMessage and pass the correct args", async () => {
-//             await sqsConnectorObj.addRequest(requestId, playerIds)
+    describe("invalidSendMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidSendMethodError().message)
+            .to.equal("INVALID_SEND_METHOD")
+        })
+    })
 
-//             expect(mockSQS.sendMessage.calledOnce).to.be.true
-//             expect(mockSQS.sendMessage.getCall(0).args[0].MessageAttributes.requestId.StringValue).to.equal(requestId)
-//             const expectedData = JSON.stringify({ids: playerIds})
-//             expect(mockSQS.sendMessage.getCall(0).args[0].MessageAttributes.playerIds.StringValue).to.equal(expectedData)
-//         })
+    describe("constructRequestObject", function() {
+        it("Should return a request object", () => {
+            const obj = constructRequestObject(
+                mockDelaySeconds,
+                mockRequestId,
+                mockPlayerIds,
+                mockMessageBody,
+                mockQueueUrl)
+            expect(obj.DelaySeconds).to.equal(mockDelaySeconds)
+            expect(obj.MessageAttributes.requestId.StringValue).to.equal(mockRequestId)
+            expect(obj.MessageAttributes.playerIds.StringValue).to.deep.equal(mockPlayerIds)
+            expect(obj.MessageBody).to.equal(mockMessageBody)
+            expect(obj.QueueUrl).to.equal(mockQueueUrl)
+        })
+    })
 
-//         it("Should pass the correct sqs que url", async () => {
-//             const testUrl = "PENDING_TEST"
-//             CONSTANTS.SQS_PENDINGREQUESTS_URL = testUrl
-//             sqsConnectorObj = new sqsConnector(deps)
-//             await sqsConnectorObj.addRequest(requestId, playerIds)
-//             expect(mockSQS.sendMessage.getCall(0).args[0].QueueUrl).to.equal(testUrl)
-//         })
-//     })
+    describe("constructQuestionObject", function() {
+        it("Should return a question object", () => {
+            const obj = constructQuestionObject(
+                mockDelaySeconds,
+                mockGameId,
+                mockMessageBody,
+                mockQueueUrl)
+            expect(obj.DelaySeconds).to.equal(mockDelaySeconds)
+            expect(obj.MessageAttributes.gameId.StringValue).to.equal(mockGameId)
+            expect(obj.MessageBody).to.equal(mockMessageBody)
+            expect(obj.QueueUrl).to.equal(mockQueueUrl)
+        })
+    })
 
-//     describe("scheduleNextQuestion", function() {
+    describe("convertIdsToJson", function() {
+        it("Should reject if stringifier fails", async () => {
+            stringifierStub = fake.throws()
+            try {
+                await convertIdsToJson(stringifierStub, mockPlayerIds)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_CONVERT_IDS_TO_JSON")
+            }
+        })
 
-//         const gameId = "TEST_GAME"
-//         const createdMessage = {
-//             MessageId: "TEST_MESSAGE"
-//         }
+        it("Should resolve to an array converted to a string", async () => {
+            const result = await convertIdsToJson(stringifierStub, mockPlayerIds)
+            expect(result).to.equal(mockPlayerIdsJson)
+        })
+    })
 
-//         this.beforeEach(() => {
-//             mockSQS.sendMessage = sinon.fake.yields(null, createdMessage)
-//         })
+    describe("validatePlayerIds", function() {
+        it("Should return false when playerId array contains invalid ids", () => {
+            mockPlayerIds = ["", "id2"]
+            expect(validatePlayerIds(mockPlayerIds)).to.be.false
+        })
+        it("Should return true", () => {
+            expect(validatePlayerIds(mockPlayerIds)).to.be.true
+        })
+    })
 
-//         it("Should throw error if gameId is not provided or is invalid", async () => {
-//             try {
-//                 await sqsConnectorObj.scheduleNextQuestion(null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("INVALID_ARGUMENTS_PROVIDED")
-//             }
-//         })
+    describe("sendMessage", function() {
+        let mockParams
 
-//         it("Should call sqsConnector.sendMessage and pass the correct args", async () => {
-//             await sqsConnectorObj.scheduleNextQuestion(gameId)
+        this.beforeEach(() => {
+            mockParams = "test_params"
+        })
 
-//             expect(mockSQS.sendMessage.calledOnce).to.be.true
-//             expect(mockSQS.sendMessage.getCall(0).args[0].MessageAttributes.gameId.StringValue).to.equal(gameId)
-//         })
+        it("Should reject if send is invalid", async () => {
+            try {
+                await sendMessage(null, mockParams)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_SEND_METHOD")
+            }
+        })
 
-//         it("Should pass the correct sqs que url", async () => {
-//             const testUrl = "NEXT_QUESTION"
-//             CONSTANTS.SQS_SCHEDULE_NEXT_QUESTION_URL = testUrl
-//             sqsConnectorObj = new sqsConnector(deps)
-//             await sqsConnectorObj.scheduleNextQuestion(gameId)
-//             expect(mockSQS.sendMessage.getCall(0).args[0].QueueUrl, "Should use the next question sqs que url").to.equal(testUrl)
-//         })
-//     })
-// })
+        it("Should reject if params is invalid", async () => {
+            try {
+                await sendMessage(sendMessageStub, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_PARAMS_ERROR")
+            }
+        })
+
+        it("Should reject if send fails", async () => {
+            const error = new Error("test_error")
+            sendMessageStub = fake.yields(error)
+            try {
+                await sendMessage(sendMessageStub, mockParams)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(error.message)
+            }
+        })
+
+        it("Should resolve if send successed", async () => {
+            const result = await sendMessage(sendMessageStub, mockParams)
+            expect(result).to.equal(mockResponse)
+        })
+    })
+
+    describe("addRequestSafe", function() {
+        it("Should reject if queueUrl is invalid", async () => {
+            try {
+                await addRequestSafe(sqsStub, stringifierStub, null, mockRequestId, mockPlayerIds)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_QUEUE_URL_PROVIDED")
+            }
+        })
+
+        it("Should reject if requestId is invalid", async () => {
+            try {
+                await addRequestSafe(sqsStub, stringifierStub, mockQueueUrl, null, mockPlayerIds)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_REQUEST_ID_PROVIDED")
+            }
+        })
+
+        it("Should reject if playerIds is invalid", async () => {
+            try {
+                await addRequestSafe(sqsStub, stringifierStub, mockQueueUrl, mockRequestId, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("PLAYER_IDS_ARRAY_CONTAINS_INVALID_ID")
+            }
+        })
+
+        it("Should reject if sendMessage is invalid", async () => {
+            sqsStub = {
+                sendMessage: null
+            }
+            try {
+                await addRequestSafe(sqsStub, stringifierStub, mockQueueUrl, mockRequestId, mockPlayerIds)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_SEND_MESSAGE_METHOD")
+            }
+        })
+
+        it("Should reject if sendMessage fails", async () => {
+            sqsStub = {
+                sendMessage: fake.yields("error")
+            }
+            try {
+                await addRequestSafe(sqsStub, stringifierStub, mockQueueUrl, mockRequestId, mockPlayerIds)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_ADD_REQUEST")
+            }
+        })
+
+        it("Should resolve if message was sent", async () => {
+            const result = await addRequestSafe(sqsStub, stringifierStub, mockQueueUrl, mockRequestId, mockPlayerIds)
+            expect(result).to.equal(mockResponse)
+        })
+    })
+
+    describe("scheduleNextQuestionSafe", function() {
+        it("Should reject if queueUrl is invalid", async () => {
+            try {
+                await scheduleNextQuestionSafe(sqsStub, null, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_QUEUE_URL_PROVIDED")
+            }
+        })
+
+        it("Should reject if gameId is invalid", async () => {
+            try {
+                await scheduleNextQuestionSafe(sqsStub, mockQueueUrl, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_GAME_ID_PROVIDED")
+            }
+        })
+
+        it("Should reject if sendMessage is invalid", async () => {
+            sqsStub = {
+                sendMessage: null
+            }
+            try {
+                await scheduleNextQuestionSafe(sqsStub, mockQueueUrl, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_SEND_MESSAGE_METHOD")
+            }
+        })
+
+        it("Should reject if sendMessage fails", async () => {
+            sqsStub = {
+                sendMessage: fake.yields("error")
+            }
+            try {
+                await scheduleNextQuestionSafe(sqsStub, mockQueueUrl, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_SCHEDULE_NEXT_QUESTION")
+            }
+        })
+
+        it("Should resolve if message was sent", async () => {
+            const result = await scheduleNextQuestionSafe(sqsStub, mockQueueUrl, mockGameId)
+            expect(result).to.equal(mockResponse)
+        })
+    })
+})
+

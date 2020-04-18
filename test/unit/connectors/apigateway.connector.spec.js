@@ -1,132 +1,222 @@
+const { 
+    postToConnection,
+    broadcastMessageSafe,
+    broadcastMessagesSafe,
+    invalidDataToPostError,
+    failedToBroadcastMessageError,
+    failedToBroadcastMessagesError,
+    failedToGetPostToConnectionMethodError,
+    failedToPostToConnectionError,
+    constructPostData
+ } = require('../../../src/opt/nodejs/apigateway.connector')
 
-// // const APC = require('../../../src/opt/nodejs/apigateway.connector')
-// const PM = require('../../../src/opt/nodejs/models/players.model')
-
-// const AWS = require('aws-sdk')
-// const chai = require('chai')
-// const expect = chai.expect
-// const sinon = require("sinon")
-
-
-// describe("Apigateway Connector", function() {
-//     let deps, apigatewayConnectorObj;
-//     let apiGatewayManagementApiStub;
-//     let mockApiGatewayManagementApi = {}
-//     let deregisterConnectionIdStub;
+const sinon = require('sinon')
+var chai = require('chai');
+const expect = chai.expect
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
-//     this.beforeAll(() => {
-//         deregisterConnectionIdStub = sinon.stub(PM.playersModel, "deregisterConnectionId").resolves()
-//         apiGatewayManagementApiStub = sinon.stub(AWS, "ApiGatewayManagementApi").callsFake(() => mockApiGatewayManagementApi)
-//         apigatewayConnectorObj = APC.apiGatewayConnector
-//     })
+describe("Apigateway Connector", function() {
+    let mockConnectionId, mockData, postStub, connectorStub
 
-//     this.afterEach(() => {
-//         apiGatewayManagementApiStub.resetHistory()
-//         deregisterConnectionIdStub.resetHistory()
-//     })
+    this.beforeEach(() => {
+        mockConnectionId = "test_connectionId"
+        mockData = "test_data"
+        postStub = fake.returns({promise: fake.resolves()})
+        connectorStub = {
+            postToConnection: postStub
+        }
+    })
 
-//     this.afterAll(() => {
-//         apiGatewayManagementApiStub.restore()
-//         deregisterConnectionIdStub.restore()
-//     })
+    describe("invalidDataToPostError", function() {
+        it("Should create a new error object", () => {
+            expect(invalidDataToPostError().message)
+            .to.equal("INVALID_DATA_TO_POST")
+        })
+    })
 
-//     describe("Module Initialization", function() {
-//         this.beforeAll(() => {
-//             apiGatewayManagementApiStub.resetHistory()
-//         })
-//         it("Should call aws.Dynamodb.DocumentClient constructor", () => {
-//             expect(apiGatewayManagementApiStub.calledOnce).to.be.true
-//         })
-//         it("Should assing _connector to the DocumentClient value", () => {
-//             expect(apigatewayConnectorObj._connector).to.deep.equal(mockApiGatewayManagementApi)
-//         })
-//     })
+    describe("failedToBroadcastMessageError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToBroadcastMessageError().message)
+            .to.equal("FAILED_TO_BROADCAST_MESSAGE")
+        })
+    })
 
-//     describe("get connector", function() {
-//         it("Should return _connector property", () => {
-//             const testConnector = "TEST_CONNECTOR"
-//             apigatewayConnectorObj._connector = testConnector
-//             expect(apigatewayConnectorObj.connector).to.equal(testConnector)
-//         })
-//     })
+    describe("failedToBroadcastMessagesError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToBroadcastMessagesError().message)
+            .to.equal("FAILED_TO_BROADCAST_MESSAGES")
+        })
+    })
 
-//     describe("generateSocketMessage", function() {
-        
-//         const connectionId = "TEST_CONNECTION";
-//         const data = JSON.stringify({message: "TEST_MESSAGE"})
+    describe("failedToGetPostToConnectionMethodError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetPostToConnectionMethodError().message)
+            .to.equal("FAILED_GET_POST_TO_CONNECTION_METHOD")
+        })
+    })
 
-//         this.beforeEach(() => {
-//             mockApiGatewayManagementApi.postToConnection = sinon.fake.returns({promise: sinon.fake.resolves()})
-//         })
+    describe("failedToPostToConnectionError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToPostToConnectionError().message)
+            .to.equal("FAILED_POST_TO_CONNECTION")
+        })
+    })
 
-//         it("Should throw error if connectionId or data is invalid or missing", async () => {
-//             try {
-//                 await apigatewayConnectorObj.generateSocketMessage(null, data)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
+    describe("constructPostData", function() {
+        it("Should return an object containing ConnectionId, and Data properties", () => {
+            const obj = constructPostData(mockConnectionId, mockData)
+            expect(obj.ConnectionId).to.equal(mockConnectionId)
+            expect(obj.Data).to.equal(mockData)
+        })
+    })
 
-//             try {
-//                 await apigatewayConnectorObj.generateSocketMessage(connectionId, null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-//         })
+    describe("postToConnection", function() {
+        it("Should reject if data is invalid", async () => {
+            try {
+                await postToConnection(postStub, mockConnectionId, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_DATA_TO_POST")
+            }
+        })
+        it("Should reject if connection id is invalid", async () => {
+            try {
+                await postToConnection(postStub, null, mockData)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_CONNECTION_ID_PROVIDED")
+            }
+        })
 
-//         it("Should call postToConnection method and pass the correct args", async () => {
-//             await apigatewayConnectorObj.generateSocketMessage(connectionId, data)
-//             expect(mockApiGatewayManagementApi.postToConnection.calledOnce).to.be.true
-//             expect(mockApiGatewayManagementApi.postToConnection.getCall(0).args[0].ConnectionId).to.equal(connectionId)
-//             expect(mockApiGatewayManagementApi.postToConnection.getCall(0).args[0].Data).to.equal(data)
-//         })
+        it("Should reject if posting to connection fails", async () => {
+            const error = new Error("TEST_ERROR")
+            postStub = fake.returns({promise: fake.rejects(error)})
+            try {
+                await postToConnection(postStub, mockConnectionId, mockData)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err).to.deep.equal(error)
+            }
+        })
 
-//         it("Should call deps.deregisterConnectionId when message could not be sent and pass conId", async () => {
-//             const error = new Error()
-//             error.statusCode = 410
-//             mockApiGatewayManagementApi.postToConnection = sinon.fake.returns({promise: sinon.fake.rejects(error)})
+        it("Should resolve if everything went well", async () => {
+            try {
+                await postToConnection(postStub, mockConnectionId, mockData)
+                expect(postStub.calledOnce).to.be.true
+                expect(postStub.getCall(0).args[0].ConnectionId).to.equal(mockConnectionId)
+                expect(postStub.getCall(0).args[0].Data).to.equal(mockData)
+            }catch(err) {
+                expect(err).to.deep.equal("FALSE_PASS")
+            }
+        })
+    })
 
-//             await apigatewayConnectorObj.generateSocketMessage(connectionId, data)
-//             expect(deregisterConnectionIdStub.calledOnce).to.be.true
-//             expect(deregisterConnectionIdStub.getCall(0).args[0]).to.equal(connectionId)
-//         })
-//     })
+    describe("broadcastMessageSafe", function() {
+        it("Should reject if data is invalid", async () => {
+            try {
+                await broadcastMessageSafe(connectorStub, mockConnectionId, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_DATA_TO_POST")
+            }
+        })
 
-//     describe("broadcastMessage", function() {
-        
-//         const connectionIds =[ "TEST_CONNECTION_ONE", "TEST_CONNECTION_TWO"];
-//         const data = JSON.stringify({message: "TEST_MESSAGE"})
+        it("Should reject if postToConnection is invalid", async () => {
+            connectorStub = {
+                postToConnection: null
+            }
+            try {
+                await broadcastMessageSafe(connectorStub, mockConnectionId, mockData)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_GET_POST_TO_CONNECTION_METHOD")
+            }
+        })
 
-//         this.beforeEach(() => {
-//             mockApiGatewayManagementApi.postToConnection = sinon.fake.returns({promise: sinon.fake.resolves()})
-//         })
+        it("Should reject if postToConnection fails", async () => {
+            const error = new Error("test_error")
+            connectorStub = {
+                postToConnection: fake.rejects(error)
+            }
+            try {
+                await broadcastMessageSafe(connectorStub, mockConnectionId, mockData)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_BROADCAST_MESSAGE")
+            }
+        })
 
-//         it("Should throw error if connectionIds or data is invalid or missing", async () => {
-//             try {
-//                 await apigatewayConnectorObj.broadcastMessage(null, data)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
+        it("Should resolve if everything went well", async () => {
+            const testData = "test_data"
+            connectorStub = {
+                postToConnection: fake.returns({promise: fake.resolves(testData)})
+            }
+            const result = await broadcastMessageSafe(connectorStub, mockConnectionId, mockData)
+            expect(result).to.equal(result)
+        })
+    })
 
-//             try {
-//                 await apigatewayConnectorObj.broadcastMessage(connectionIds, null)
-//                 throw new Error("FALSE_PASS")
-//             }catch(err) {
-//                 expect(err.message).to.equal("PROVIDED_ARGUMENTS_ARE_INVALID")
-//             }
-//         })
+    describe("broadcastMessagesSafe", function() {
+        let mockConnectionIds
 
-//         it("Should call generateSocketMessage for every connection id and pass correct args", async () => {
-//             const generateSocketMessageSpy = sinon.spy(apigatewayConnectorObj, "generateSocketMessage")
-//             await apigatewayConnectorObj.broadcastMessage(connectionIds, data)
-//             expect(apigatewayConnectorObj.generateSocketMessage.callCount).to.equal(connectionIds.length)
-//             expect(apigatewayConnectorObj.generateSocketMessage.getCall(0).args[0]).to.equal(connectionIds[0])
-//             expect(generateSocketMessageSpy.getCall(0).args[1]).to.equal(data)
-//             generateSocketMessageSpy.restore()
-//         })
-//     })
+        this.beforeEach(() => {
+            mockConnectionIds = ["con1", "con2", "con3"]
+        })
 
-// })
+        it("Should reject if data is invalid", async () => {
+            try {
+                await broadcastMessagesSafe(connectorStub, mockConnectionIds, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_DATA_TO_POST")
+            }
+        })
+
+        it("Should reject if connectionids is empty array", async () => {
+            mockConnectionIds = []
+            try {
+                await broadcastMessagesSafe(connectorStub, mockConnectionIds, mockData)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_CONNECTION_ID_PROVIDED")
+            }
+        })
+
+        it("Should reject if postToConnection is invalid", async () => {
+            connectorStub = {
+                postToConnection: null
+            }
+            try {
+                await broadcastMessagesSafe(connectorStub, mockConnectionIds, mockData)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_GET_POST_TO_CONNECTION_METHOD")
+            }
+        })
+
+        it("Should reject if postToConnection fails", async () => {
+            const error = new Error("test_error")
+            connectorStub = {
+                postToConnection: fake.rejects(error)
+            }
+            try {
+                await broadcastMessagesSafe(connectorStub, mockConnectionIds, mockData)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_BROADCAST_MESSAGES")
+            }
+        })
+
+        it("Should resolve if everything went well", async () => {
+            const testData = "test_data"
+            connectorStub = {
+                postToConnection: fake.returns({promise: fake.resolves(testData)})
+            }
+            const result = await broadcastMessagesSafe(connectorStub, mockConnectionIds, mockData)
+            expect(result[0]).to.equal(testData)
+        })
+    })
+})

@@ -15,13 +15,14 @@ const {
     failedTogetRefreshSessionMethodError,
     invalidRefreshSessionMethodError,
     refreshTokenSafe,
+    getTokens,
     refresh,
     constructAuthenticationData,
     constructCognitoUserObject,
     createTokensObject,
     extractTokenMethods,
-    authenticate,
-    authenticateUserSafe
+    authenticateUserSafe,
+    authenticate
 } = require('../../../src/opt/nodejs/cognito.connector')
 
 const sinon = require('sinon')
@@ -379,6 +380,22 @@ describe("Cognito Connector", function() {
                 expect(err).to.deep.equal(testError)
             }
         })
+
+        it("Should reject if authenticating user fails", async () => {
+            const testError = new Error("test_error")
+            getCognitoUserStub = () => {throw testError}
+            try {
+                await authenticateUserSafe(
+                    getAuthenticationDetailsStub,
+                    getCognitoUserStub,
+                    mockUserPool, 
+                    mockUsername, 
+                    mockPassword)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.deep.equal("FAILED_TO_AUTHENTICATE_USER")
+            }
+        })
         // Revisit
         // it("Should reject if completeNewPasswordChallenge fails", async () => {
         //     completeNewPasswordChallengeStub = fake.reject()
@@ -409,6 +426,309 @@ describe("Cognito Connector", function() {
         //         expect(err.message).to.equal("FAILED_TO_AUTHENTICATE_USER")
         //     }
         // })
+    })
+
+    describe("authenticate", function() {
+        it("Should reject if onSuccess fails", async () => {
+            const authDetailsStub = fake.returns()
+            mockResult = {
+                getAccessToken: null
+            }
+            try {
+                await authenticate(
+                    authenticateUserStub,
+                    completeNewPasswordChallengeStub,
+                    authDetailsStub
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_ACCESS_TOKEN_METHOD")
+            }
+        })
+    })
+
+
+    describe("Refresh autnetication token", function() {
+        let _refreshSessionStub, getCognitoRefreshTokenStub, refreshTokenStub
+
+        this.beforeEach(() => {
+            getCognitoRefreshTokenStub = mockGetRefreshToken
+            _refreshSessionStub = fake.yields(null, mockResult)
+            getCognitoUserStub = fake.returns({
+                refreshSession: _refreshSessionStub,
+                refreshToken: mockTokenId
+            })
+        })
+
+        describe("refresh", function() {
+            it("Should reject if _refreshSession is not valid", async () => {
+                try {
+                    await refresh(null, mockTokenId)     
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("INVALID_REFRESH_SESSION_METHOD_PROVIDED")
+                }
+            })
+            it("Should reject if token is invalid", async () => {
+                try {
+                    await refresh(_refreshSessionStub, null)
+                }catch(err) {
+                    expect(err.message).to.equal("INVALID_TOKEN_PROVIDED")
+                }
+            })
+            it("Should reject if _refreshSession fails", async () => {
+                const error = new Error("test_error")
+                _refreshSessionStub = fake.yields(error)
+                try {
+                    await refresh(_refreshSessionStub, mockTokenId)
+                }catch(err) {
+                    expect(err.message).to.equal(error.message)
+                }
+            })
+
+            it("Should resolve to an object containing three types of tokens", async () => {
+                const tokens =  await refresh(_refreshSessionStub, mockTokenId)
+                expect(tokens.accessToken).to.equal(mockAccessToken)
+                expect(tokens.refreshToken).to.equal(mockRefreshToken)
+                expect(tokens.tokenId).to.equal(mockTokenId)
+                expect(_refreshSessionStub.getCall(0).args[0]).to.equal(mockTokenId)
+            })
+        })
+
+        describe("refreshTokenSafe", function() {
+            it("Should reject if username is invalid", async () => {
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        mockUserPool,
+                        "",
+                        mockTokenId)
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("INVALID_USERNAME_PROVIDED")
+                }
+            })
+
+            it("Should reject if token is invalid", async () => {
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        mockUserPool,
+                        mockUsername,
+                        "")
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("INVALID_TOKEN_PROVIDED")
+                }
+            })
+
+            it("Should reject if userPool is invalid", async () => {
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        "",
+                        mockUsername,
+                        mockTokenId)
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("INVALID_USER_POOL_PROVIDED")
+                }
+            })
+
+            it("Should reject if if getCognitoRefreshToken fails", async () => {
+                getCognitoRefreshTokenStub = fake.returns(null)
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        mockUserPool,
+                        mockUsername,
+                        mockTokenId)
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("FAILED_TO_GET_REFRESH_TOKEN_TOKEN")
+                    expect(getCognitoRefreshTokenStub.calledOnce).to.be.true
+                    expect(getCognitoRefreshTokenStub.getCall(0).args[0].RefreshToken).to.equal(mockTokenId)
+                }
+            })
+
+            it("Should reject if if getCognitoUser fails", async () => {
+                getCognitoUserStub = fake.returns(null)
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        mockUserPool,
+                        mockUsername,
+                        mockTokenId)
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("FAILED_TO_GET_COGNITO_USER")
+                    expect(getCognitoUserStub.calledOnce).to.be.true
+                    expect(getCognitoUserStub.getCall(0).args[0].Username).to.equal(mockUsername)
+                }
+            })
+
+            it("Should reject if refreshToken is undefined or null", async () => {
+                getCognitoUserStub = fake.returns({
+                    refreshSession: _refreshSessionStub,
+                    refreshToken: null
+                })
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        mockUserPool,
+                        mockUsername,
+                        mockTokenId)
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("FAILED_TO_GET_REFRESH_TOKEN_METHOD")
+                }
+            })
+
+            it("Should reject if refreshSession is undefined or null", async () => {
+                getCognitoUserStub = fake.returns({
+                    refreshSession: null,
+                    refreshToken: mockTokenId
+                })
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        mockUserPool,
+                        mockUsername,
+                        mockTokenId)
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("FAILED_TO_GET_REFRESH_SESSION_METHOD")
+                }
+            })
+
+            it("Should reject if getToken is undefined or null", async () => {
+
+                getCognitoRefreshTokenStub = fake.returns({getToken: null})
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        mockUserPool,
+                        mockUsername,
+                        mockTokenId)
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("FAILED_TO_GET_GET_TOKEN_METHOD")
+                }
+            })
+
+            it("Should invoke getToken", async () => {
+                const getTokenStub = fake.returns("test")
+                getCognitoRefreshTokenStub = fake.returns({getToken: getTokenStub})
+                try {
+                    await refreshTokenSafe(
+                            getCognitoRefreshTokenStub, 
+                            getCognitoUserStub,
+                            mockUserPool,
+                            mockUsername,
+                            mockTokenId)
+                    expect(getTokenStub.calledOnce).to.be.true
+                }catch(err) {
+                    expect(err.message).to.equal("FAILED")
+                }
+            })
+
+            it("Should reject if refreshing token fails", async () => {
+                const error = new Error("test_error")
+                getCognitoRefreshTokenStub = fake.returns({getToken: () => {throw error}})
+                try {
+                    await refreshTokenSafe(
+                        getCognitoRefreshTokenStub, 
+                        getCognitoUserStub,
+                        mockUserPool,
+                        mockUsername,
+                        mockTokenId)
+                    throw new Error("FALSE_PASS")
+                }catch(err) {
+                    expect(err.message).to.equal("FAILED_TO_REFRESH_TOKEN")
+                }
+            })
+
+            it("Should resolve to an object containing three types of tokens if everyting went well", async () => {
+                const tokens =  await refreshTokenSafe(
+                    getCognitoRefreshTokenStub, 
+                    getCognitoUserStub,
+                    mockUserPool,
+                    mockUsername,
+                    mockTokenId)
+                expect(tokens.accessToken).to.equal(mockAccessToken)
+                expect(tokens.refreshToken).to.equal(mockRefreshToken)
+                expect(tokens.tokenId).to.equal(mockTokenId)
+                expect(_refreshSessionStub.getCall(0).args[0]).to.equal(mockTokenId)
+            })
+        })
+    })
+
+    describe("getTokens", function() {
+        let getAccessToken, getRefreshToken, getIdToken
+
+        this.beforeEach(() => {
+            getAccessToken = fake.returns(mockAccessToken)
+            getRefreshToken = fake.returns(mockRefreshToken)
+            getIdToken = fake.returns(mockTokenId)
+        })
+
+        it("Should reject if accessToken is null or undefined", async () => {
+            getAccessToken = fake.returns(null)
+            try {
+                await getTokens(
+                    getAccessToken, 
+                    getRefreshToken, 
+                    getIdToken)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_ACCESS_TOKEN")
+            }
+        })
+
+        it("Should reject if refreshToken is null or undefined", async () => {
+            getRefreshToken = fake.returns(null)
+            try {
+                await getTokens(
+                    getAccessToken, 
+                    getRefreshToken, 
+                    getIdToken)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_REFRESH_TOKEN_TOKEN")
+            }
+        })
+
+        it("Should reject if tokenId is null or undefined", async () => {
+            getIdToken = fake.returns(null)
+            try {
+                await getTokens(
+                    getAccessToken, 
+                    getRefreshToken, 
+                    getIdToken)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_ID_TOKEN")
+            }
+        })
+
+
+        it("Should resolve to an object containing three types of tokens if everyting went well", async () => {
+            const tokens =  await getTokens(
+                getAccessToken, 
+                getRefreshToken, 
+                getIdToken)
+            expect(tokens.accessToken).to.equal(mockAccessToken)
+            expect(tokens.refreshToken).to.equal(mockRefreshToken)
+            expect(tokens.tokenId).to.equal(mockTokenId)
+        })
     })
 
 })
