@@ -7,6 +7,7 @@ const {
 const {
     invalidConnectionIdError
 } = require('./utils/errors/general')
+const aws = require('aws-sdk')
 
 
 const failedToPostToConnectionError = () => new Error("FAILED_POST_TO_CONNECTION")

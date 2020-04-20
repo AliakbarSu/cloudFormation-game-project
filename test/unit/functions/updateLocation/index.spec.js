@@ -1,103 +1,96 @@
-// const handler = require('../../../../src/updateLocation/index').handler
+const { 
+    failedToUpdatePlayersLocationError,
+    handlerSafe
+ } = require('../../../../src/updateLocation/index')
 
-// const chai = require('chai');
-// const expect = chai.expect
-// const sinon = require('sinon')
-// const Bottle = require('bottlejs')
+const chai = require('chai');
+const expect = chai.expect
+const sinon = require('sinon')
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
 
-// describe("updateLocation::index", function() {
-//     let event, context, updateLocationStub
+describe("updateLocation::index", function() {
+    let mockConnectionId, mockLatitude, mockLongitude,
+    mockEvent, mockContext, updatePlayersLocationStub
 
+    this.beforeEach(() => {
+        mockConnectionId = "test_connectionId"
+        mockLatitude = 12323.233
+        mockLongitude = 22444.244
+        mockContext = {
+            callbackWaitsForEmptyEventLoop: true
+        }
+        mockEvent = {
+            connectionId: mockConnectionId,
+            data: {
+                longitude: mockLongitude,
+                mockLatitude: mockLatitude
+            }
+        }
+        updatePlayersLocationStub = fake.resolves()
+    })
 
-//     this.beforeEach(() => {
+    describe("failedToUpdatePlayersLocationError", function() {
+        it("Should return an error object", () => {
+            expect(failedToUpdatePlayersLocationError().message)
+            .to.equal("FAILED_TO_UPDATE_PLAYERS_LOCATION")
+        })
+    })
 
-//         Bottle.clear("click")
-//         const bottle = Bottle.pop("click")
-           
-//         bottle.service('model.player', function () {
-//             updateLocationStub = sinon.fake.resolves()
-//             return {
-//                 updatePlayersLocation: updateLocationStub
-//             }
-//         })
+    describe("handlerSafe", function() {
+        it("Should reject if connection id is invalid", async () => {
+            mockEvent.connectionId = null
+            try {
+                await handlerSafe(updatePlayersLocationStub, mockEvent, mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_CONNECTION_ID_PROVIDED")
+            }
+        })
 
-//         event = {
-//             connectionId: "test_connection_id",
-//             data: {
-//                 latitude: 123456,
-//                 longitude: 123456
-//             }
-//         }
+        it("Should reject if latitude is invalid", async () => {
+            mockEvent.data.latitude = -1
+            try {
+                await handlerSafe(updatePlayersLocationStub, mockEvent, mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_LATITUDE_PROVIDED")
+            }
+        })
 
-//         context = {
-//             callbackWaitsForEmptyEventLoop: true
-//         }
-//     })
+        it("Should reject if longitude is invalid", async () => {
+            mockEvent.data.longitude = -1
+            try {
+                await handlerSafe(updatePlayersLocationStub, mockEvent, mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_LONGITUDE_PROVIDED")
+            }
+        })
 
-//     this.afterAll(() => {
-//         Bottle.clear("click")
-//     })
+        it("Should reject if updatePlayersLocation fails", async () => {
+            updatePlayersLocationStub = fake.rejects()
+            try {
+                await handlerSafe(updatePlayersLocationStub, mockEvent, mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_UPDATE_PLAYERS_LOCATION")
+            }
+        })
 
-//     it("Should throw error if connectionId is missing", async () => {
-//         try {
-//             event.connectionId = null
-//             await handler(event, context)
-//             throw new Error("FALSE_PASS")
-//         }catch(err) {
-//             expect(err.message).to.equal("SOME_REQUIRED_ARGS_ARE_MISSING")
-//         }
-//     })
+        it("Should set callbackWaitsForEmptyEventLoop to false", async () => {
+            await handlerSafe(updatePlayersLocationStub, mockEvent, mockContext)
+            expect(mockContext.callbackWaitsForEmptyEventLoop).to.be.false
+        })
 
-//     it("Should throw error if latitude is missing", async () => {
-//         try {
-//             event.data.latitude = ""
-//             await handler(event, context)
-//             throw new Error("FALSE_PASS")
-//         }catch(err) {
-//             expect(err.message).to.equal("SOME_REQUIRED_ARGS_ARE_MISSING")
-//         }
-//     })
+        it("Should resolve if everything went well", async () => {
+            const result = await handlerSafe(updatePlayersLocationStub, mockEvent, mockContext)
+            expect(result).to.equal("LOCATION_UPDATED_SECCESSFULLY")
+        })
 
-//     it("Should throw error if longitude is missing", async () => {
-//         try {
-//             event.data.longitude = ""
-//             await handler(event, context)
-//             throw new Error("FALSE_PASS")
-//         }catch(err) {
-//             expect(err.message).to.equal("SOME_REQUIRED_ARGS_ARE_MISSING")
-//         }
-//     })
-
-//     it("Should set context.callbackWaitsForEmptyEventLoop to false", async () => {
-//         await handler(event, context)
-//         expect(context.callbackWaitsForEmptyEventLoop).to.be.false
-//     })
-
-//     it("Should invoke updatePlayersLocation and pass correct params", async () => {
-//         await handler(event, context)
-//         expect(updateLocationStub.calledOnce).to.be.true
-//         expect(updateLocationStub.getCall(0).args[0]).to.equal(event.connectionId)
-//         expect(updateLocationStub.getCall(0).args[1]).to.equal(event.data.latitude)
-//         expect(updateLocationStub.getCall(0).args[2]).to.equal(event.data.longitude)
-//     })
-
-//     it("Should throw error when updatePlayersLocation fails", async () => {
-//         const error = new Error("test_error")
-//         Bottle.clear("click")
-//         const bottle = Bottle.pop("click")
-           
-//         bottle.service('model.player', function () {
-//             updateLocationStub = sinon.fake.rejects(error)
-//             return {
-//                 updatePlayersLocation: updateLocationStub
-//             }
-//         })
-//         try {
-//             await handler(event, context)
-//         }catch(err) {
-//             expect(err).to.deep.equal(error)
-//         }
-//     })
-// })
+        
+    })
+})

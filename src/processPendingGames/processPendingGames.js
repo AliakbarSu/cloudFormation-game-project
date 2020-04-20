@@ -1,39 +1,87 @@
-let resourcesPath = "../opt/nodejs/";
-if(!process.env['DEV']) {
-    resourcesPath = "/opt/nodejs/"
-}
+let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 
-const bottle = require(resourcesPath + "container")
-const processGame = require('./processGame')
-bottle.service("processGame", processGame, "model.player", "model.game", "connector.apigateway", "connector.sqs")
-bottle.service("processPendingGames", processPendingGames, "lib.aws", "processGame")
+const { curry, get} = require("lodash/fp")
+const { isValidRequestId } = require(layerPath + 'utils/validators/index')
+const { invalidRequestIdError } = require(layerPath + 'utils/errors/general')
+const { processGame } = require('./processGame')
+const AWS = require('aws-sdk')
 
-const processPendingGames = (aws, processGame) => async (event, context) => {
+const invalidPlayersError = () => new Error("INVALID_PLAYERS_IN_REQUEST_OBJECT")
+const invalidQuestionsError = () => new Error("INVALID_QUESTIONS_IN_REQUEST_OBJECT")
+const failedToProcessRecordsError = () => new Error("FAILED_TO_PROCESS_RECORDS")
+const failedToUnmarshallDataError = () => new Error("FAILED_TO_UNMARSHALL_DATA")
 
-    context.callbackWaitsForEmptyEventLoop = false;
+const unmarshallData = curry(async (unmarshall, record, gameId) => {
+    try {
+        const data = unmarshall(record)
+        const players = get("players", data)
+        const questions = get("questions", data)
+        const requestId = get("request_id", data)
+        if(players.length < 2)
+            return Promise.reject(invalidPlayersError())
 
-    const records = event.Records.map(r => {
-        const data = aws.DynamoDB.Converter.unmarshall(r.dynamodb.NewImage)
-        return {
-            gameId: r.dynamodb.Keys._id.S,
-            eventName: r.eventName,
-            questions: data.questions,
-            players: data.players,
-            requestId: data.request_id
-        }
-    }).filter(r => r.eventName == "INSERT");
-   
-    return Promise.all([
-        ...records.map(record => processGame(record, deps))
-    ]).catch(err => {
+        if(questions.length == 0)
+            return Promise.reject(invalidQuestionsError())
+
+        if(!isValidRequestId(requestId))
+            return Promise.reject(invalidRequestIdError())
+
+        return Promise.resolve({
+            gameId,
+            questions,
+            players,
+            requestId
+        })
+    }catch(err) {
         console.log(err)
-        throw err
-    })
-   
+        return Promise.reject(failedToUnmarshallDataError())
+    }
+    
+})
+
+
+const handlerSafe = curry(async (unmarshall, processGame, event, context) => {
+    context.callbackWaitsForEmptyEventLoop = false
+
+    const records = get("Records", event)
+    const filteredRecords = records.filter(record => record.eventName == "INSERT")
+
+    if(filteredRecords.length == 0)
+        return Promise.resolve("NO_RECORD_TO_PROCESS")
+
+    const mapedRecords = await Promise.all(
+        filteredRecords.map(record => 
+            unmarshallData(
+                unmarshall, 
+                record.dynamodb.NewImage,
+                record.dynamodb.Keys._id.S
+            ).catch(e => e))
+        )
+
+    const validResults = mapedRecords.filter(result => !(result instanceof Error))
+    const invalidResults = mapedRecords.filter(result => (result instanceof Error))
+
+    if(validResults.length == 0)
+        return Promise.reject(invalidResults[0])
+
+    const processedGames = await Promise.all(validResults.map(record => processGame(record).catch(e => e)))
+    const passedProcesses = processedGames.filter(result => !(result instanceof Error))
+    const failedProcesses = processedGames.filter(result => (result instanceof Error))
+
+    if(passedProcesses.length == 0)
+        return Promise.reject(failedProcesses[0])
+    
+    return Promise.resolve(passedProcesses)
+})
+
+module.exports = {
+    invalidPlayersError,
+    invalidQuestionsError,
+    failedToProcessRecordsError,
+    failedToUnmarshallDataError,
+    unmarshallData,
+    handlerSafe,
+    handler: handlerSafe(AWS.DynamoDB.Converter.unmarshall, processGame)
 }
 
-
-
-
-module.exports = bottle.container.processPendingGames
 

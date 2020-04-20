@@ -1,125 +1,81 @@
-// const handler = require('../../../../src/cognitoAuthenticator/index').handler
+const { handlerSafe } = require('../../../../src/cognitoAuthenticator/index')
+
+const chai = require('chai');
+const expect = chai.expect
+const sinon = require('sinon')
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
+
+const {
+    invalidUsernameError,
+    invalidPasswordError
+} = require('../../../../src/opt/nodejs/utils/errors/general')
 
 
-// const chai = require('chai');
-// const expect = chai.expect
-// const sinon = require('sinon')
-// const fake = sinon.fake
-// const Bottle = require('bottlejs')
+
+describe("cognitoAuthenticator", function() {
+    let authenticateUserStub, mockTokenId, mockRefreshToken,
+    mockUsername, mockPassword, mockEvent, mockContext
+
+    this.beforeEach(() => {
+        mockUsername = "test_username"
+        mockPassword = "test_password"
+        mockTokenId = "test_token_id"
+        mockRefreshToken = "test_refresh_token"
+        mockContext = {
+            callbackWaitsForEmptyEventLoop: true,
+            awsRequestId: "test_request_id"
+        }
+        mockEvent = {
+            username: mockUsername,
+            password: mockPassword
+        }
+        authenticateUserStub = fake.resolves({
+            tokenId: mockTokenId,
+            refreshToken: mockRefreshToken
+        })
+    })
 
 
+    it("Should reject if username is invalid", async () => {
+        mockEvent.username = null
+        try {
+            await handlerSafe(authenticateUserStub, mockEvent, mockContext)
+            throw new Error("FALSE_PASS")
+        }catch(err) {
+            expect(err.message).to.equal(invalidUsernameError().message)
+        }
+    })
 
-// describe("cognitoAuthenticator", function() {
-//     let mapErrorStub, authenticateUserStub, event, context, bottle
+    it("Should reject if password is invalid", async () => {
+        mockEvent.password = null
+        try {
+            await handlerSafe(authenticateUserStub, mockEvent, mockContext)
+            throw new Error("FALSE_PASS")
+        }catch(err) {
+            expect(err.message).to.equal(invalidPasswordError().message)
+        }
+    })
 
-//     const mockError = new Error("test_error")
+    it("Should reject to a 500 error type if authenticating user fails", async () => {
+        authenticateUserStub = fake.rejects(new Error())
+        try {
+            await handlerSafe(authenticateUserStub, mockEvent, mockContext)
+            throw new Error("FALSE_PASS")
+        }catch(err) {
+            expect(err.httpStatus).to.equal(500)
+            expect(err.requestId).to.equal(mockContext.awsRequestId)
+            expect(err.message).to.equal("An unkown error has occured. Please try again.")
+            expect(err.errorType).to.equal("InternalServerError")
+        }
+    })
 
-//     const mockResult = {
-//         tokenId: "test_tokenId",
-//         refreshToken: "test_refreshToken"
-//     }
+    it("Should resolve to an object containing tokenId, refreshToken, and username", async () => {
+        const result = await handlerSafe(authenticateUserStub, mockEvent, mockContext)
+        expect(result.token).to.equal(mockTokenId)
+        expect(result.refresh).to.equal(mockRefreshToken)
+        expect(result.username).to.equal(mockUsername)
+    })
 
-
-//     this.beforeEach(() => {
-
-//         Bottle.clear("click")
-//         bottle = Bottle.pop("click")
-           
-//         bottle.service('connector.cognito', function () {
-//             authenticateUserStub = sinon.fake.resolves(mockResult)
-//             return {
-//                 authenticateUser: authenticateUserStub
-//             }
-//         })
-
-//         bottle.service("utils.mapError", function () {
-//             mapErrorStub = sinon.fake.returns(mockError)
-//             return mapErrorStub
-//         })
-
-//         event = {
-//             username: "test_username",
-//             password: "test_password"
-//         }
-
-//         context = {}
-
-    
-//     })
-
-//     this.afterAll(() => {
-//         Bottle.clear("click")
-//     })
-
-
-//     it("Should CC.authenticateUser and pass username and password", async () => {
-//         await handler(event, context)
-//         expect(authenticateUserStub.calledOnce).to.be.true
-//         expect(authenticateUserStub.getCall(0).args[0]).to.equal(event.username)
-//         expect(authenticateUserStub.getCall(0).args[1]).to.equal(event.password)
-//     })
-
-//     it("Should return a success response", async () => {
-//         const expectedBody = JSON.stringify({
-//             token: mockResult.tokenId,
-//             refresh: mockResult.refreshToken,
-//             user: event.username
-//         })
-//         const expectedHeaders = {
-//             'Content-Type': 'text/plain',
-//             'Access-Control-Allow-Origin': "*"
-//         }
-//         const response = await handler(event, context)
-//         expect(response.statusCode).to.equal(200)
-//         expect(response.body).to.equal(expectedBody)
-//         expect(response.headers).to.deep.equal(expectedHeaders)
-//     })
-
-//     it("Should invoke mapError and pass error and context objects when authentication fails", async () => {
-           
-//         bottle.service('connector.cognito', function () {
-//             authenticateUserStub = sinon.fake.rejects(mockError, context)
-//             return {
-//                 authenticateUser: authenticateUserStub
-//             }
-//         })
-
-//         bottle.service("utils.mapError", function () {
-//             console.log("running")
-//             mapErrorStub = sinon.fake.returns(mockError)
-//             return mapErrorStub
-//         })
-
-//         try {
-//             await handler(event, context)
-//             throw new Error("FALSE_PASS")
-//         }catch(err) {
-//             expect(mapErrorStub.calledOnce).to.be.true
-//             expect(mapErrorStub.getCall(0).args[0]).to.deep.equal(mockError)
-//             expect(mapErrorStub.getCall(0).args[1]).to.deep.equal(context)
-//         }
-//     })
-
-//     it("Should return a failed response", async () => {
-        
-//         bottle.service('connector.cognito', function () {
-//             authenticateUserStub = sinon.fake.rejects(mockError)
-//             return {
-//                 authenticateUser: authenticateUserStub
-//             }
-//         })
-
-//         bottle.service("utils.mapError", function () {
-//             mapErrorStub = sinon.fake.returns(mockError)
-//             return mapErrorStub
-//         })
-        
-//         try {
-//             await handler(event, context)
-//             throw new Error("FALSE_PASS")
-//         }catch(err) {
-//             expect(err).to.deep.equal(mockError)
-//         }
-//     })
-
-// })
+})

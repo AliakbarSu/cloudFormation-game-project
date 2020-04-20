@@ -451,7 +451,7 @@ Resources:
           API_GATEWAY_REGION: us-east-1
           DYNAMODB_REQUESTS_TABLE: requests
           # MongoDBAtlasStack.Outputs.MongoDbURL
-          PLAYERS_DISTANCE: 100
+          PLAYERS_DISTANCE: "100"
           SQS_PENDINGREQUESTS_URL: !Ref PendingRequestsQue
           WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
           KEYS_URL: "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_5i9hLQyTN/.well-known/jwks.json"

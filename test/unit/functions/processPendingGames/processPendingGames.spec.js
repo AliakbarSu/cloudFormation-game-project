@@ -1,219 +1,168 @@
-// let layerPath = "../../../../src/opt/nodejs/";
-// if(!process.env['DEV']) {
-//     layerPath = "/opt/nodejs/"
-// }
+const {
+    invalidPlayersError,
+    invalidQuestionsError,
+    failedToProcessRecordsError,
+    failedToUnmarshallDataError,
+    unmarshallData,
+    handlerSafe
+} = require('../../../../src/processPendingGames/processPendingGames')
 
+const chai = require('chai');
+const expect = chai.expect
+const sinon = require('sinon')
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
+describe('Process Pending Games', function() {
+    let mockRecords, mockQuestions, mockPlayers,
+    mockRequestId, mockEvent, mockContext, unmarshallStub,
+    processGameStub, mockGameId, mockResponse
 
-// const processPendingGames = require("../../../../src/processPendingGames/processPendingGames")
-// const GameModel = require(layerPath + 'models/game.model')
-// const PlayersModel = require(layerPath + 'models/players')
-// const ApiGatewayConnector = require(layerPath + 'apigateway.connector')
-// const SqsConnector = require(layerPath + 'sqs.connector')
-// const db = require(layerPath + 'dynamodb.connector')
-// const CONSTANTS = require(layerPath + 'constants')
+    this.beforeEach(() => {
+        mockPlayers = {playerOne: {}, playerTwo: {}}
+        mockQuestions = [{id: "testId1"}, {id: "testId2"}]
+        mockRequestId = "test_request_id"
+        mockGameId = "test_game_id"
+        mockResponse = "test_response"
+        mockRecords = [{
+            eventName: "INSERT",
+            dynamodb: {
+                Keys: {_id: {S: mockGameId }},
+                NewImage: {
+                    players: mockPlayers,
+                    questions: mockQuestions,
+                    request_id: mockRequestId
+                }
+            }
+        }]
+        mockEvent = {
+            Records: mockRecords
+        }
+        mockContext = {
+            callbackWaitsForEmptyEventLoop: true
+        }
+        processGameStub = fake.resolves(mockResponse)
+        unmarshallStub = arg => arg
 
-// const AWS = require('aws-sdk')
-// const uuid = require('uuid')
-// var chai = require('chai');
-// const assert = chai.assert
-// const sinon = require('sinon')
+    })
 
+    describe("invalidPlayersError", function() {
+        it("Should return an error object", () => {
+            expect(invalidPlayersError().message).to.equal("INVALID_PLAYERS_IN_REQUEST_OBJECT")
+        })
+    })
 
-// describe('Process Pending Games', function() {
-//   let event, context, deps;
-//   let getPendingGameStub, 
-//   broadCastMessageStub, 
-//   getPlayersConIdsStub, 
-//   markQuestionAsFetchedStub,
-//   scheduleNextQuestionStub;
+    describe("invalidQuestionsError", function() {
+        it("Should return an error object", () => {
+            expect(invalidQuestionsError().message).to.equal("INVALID_QUESTIONS_IN_REQUEST_OBJECT")
+        })
+    })
 
-//   this.beforeEach(() => {
-//     event = {
-//         Records: [
-//             {
-//                 eventID: '1ef1c0d5bf54e02ab9b8cf1469013a5c',
-//                 eventName: 'INSERT',
-//                 dynamodb: {
-//                     ApproximateCreationDateTime: 1584886254,
-//                     Keys: { _id: { S: 'fsfasf' } },
-//                     NewImage: { 
-//                         players: {
-//                             M: {
-//                                 playerOne: {M: {}},
-//                                 playerTwo: {M: {}}
-//                             }
-//                         },
-//                         questions: {
-//                             L: [
-//                                 {
-//                                     M: {
-//                                         qid: { S: "Q_ONE"},
-//                                         text: { S: "first test question"},
-//                                         answers: {
-//                                             L: [
-//                                                 {
-//                                                     M: {
-//                                                         aid: { S: "A_ONE"},
-//                                                         text: { S: "first test answer"}
-//                                                     }
-//                                                 }
-//                                             ]
-//                                         }
-//                                     }
-                                    
-//                                 },
-//                                 {
-//                                     M: {
-//                                         qid: { S: "Q_ONE"},
-//                                         text: { S: "first test question"},
-//                                         answers: {
-//                                             L: [
-//                                                 {
-//                                                     M: {
-//                                                         aid: { S: "A_ONE"},
-//                                                         text: { S: "first test answer"}
-//                                                     }
-//                                                 }
-//                                             ]
-//                                         }
-//                                     }
-                                    
-//                                 }
-//                             ]
-//                         }
-//                     },
-//                     SequenceNumber: '38116500000000001441142066'
-//                 },
-//                 eventSourceARN: 'arn:aws:dynamodb:us-east-2:178001805015:table/games/stream/2020-03-17T06:21:52.599'
-//             }
-//         ]
-          
-//     }
+    describe("failedToProcessRecordsError", function() {
+        it("Should return an error object", () => {
+            expect(failedToProcessRecordsError().message).to.equal("FAILED_TO_PROCESS_RECORDS")
+        })
+    })
 
-//     context =  {
-//       callbackWaitsForEmptyEventLoop: true
-//     }
+    describe("failedToUnmarshallDataError", function() {
+        it("Should return an error object", () => {
+            expect(failedToUnmarshallDataError().message).to.equal("FAILED_TO_UNMARSHALL_DATA")
+        })
+    })
 
-//     deps = {
-//       GameModel,
-//       PlayersModel: PlayersModel.obj,
-//       ApiGatewayConnector: ApiGatewayConnector,
-//       SqsConnector: SqsConnector,
-//       getId: uuid.v4,
-//       DynamodbConnector: db,
-//       AWS,
-//       CONSTANTS,
-//       processGame: processPendingGames.processGame
-//     }
+    describe("unmarshallData", function() {
+        it("Should reject if there is less than 1 player in the game object", async () => {
+            mockRecords[0].dynamodb.NewImage.players = [mockPlayers[0]]
+            try {
+                await unmarshallData(unmarshallStub, mockRecords[0].dynamodb.NewImage, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_PLAYERS_IN_REQUEST_OBJECT")
+            }
+        })
 
-//     getPendingGameStub = sinon.stub(deps.GameModel.prototype, "getPendingGame").resolves({Items: [], Count: 0})
-//     getPlayersConIdsStub = sinon.stub(deps.PlayersModel, "getPlayersConIds").resolves(["conIdOne", "conIdTwo"])
-//     scheduleNextQuestionStub = sinon.stub(deps.SqsConnector.prototype, "scheduleNextQuestion").resolves()
-//     broadCastMessageStub = sinon.stub(ApiGatewayConnector.prototype, "broadcastMessage").resolves()
-//     markQuestionAsFetchedStub = sinon.stub(deps.GameModel.prototype, "markQuestionAsFetched").resolves()
+        it("Should reject if there is not questions in the game object", async () => {
+            mockRecords[0].dynamodb.NewImage.questions = []
+            try {
+                await unmarshallData(unmarshallStub, mockRecords[0].dynamodb.NewImage, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_QUESTIONS_IN_REQUEST_OBJECT")
+            }
+        })
 
-//   })
+        it("Should reject if request id is invalid", async () => {
+            mockRecords[0].dynamodb.NewImage.request_id = null
+            try {
+                await unmarshallData(unmarshallStub, mockRecords[0].dynamodb.NewImage, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_REQUEST_ID_PROVIDED")
+            }
+        })
 
-//   this.afterEach(() => {
-//     getPendingGameStub.restore()
-//     getPlayersConIdsStub.restore()
-//     scheduleNextQuestionStub.restore()
-//     broadCastMessageStub.restore()
-//     markQuestionAsFetchedStub.restore()
-//   })
+        it("Should resolve to an object", async () => {
+            const result = await unmarshallData(unmarshallStub, mockRecords[0].dynamodb.NewImage, mockGameId)
+            expect(result.gameId).to.equal(mockGameId)
+            expect(result.questions).to.deep.equal(mockQuestions)
+            expect(result.players).to.deep.equal(mockPlayers)
+            expect(result.requestId).to.equal(mockRequestId)
+        })
+    })
 
+    describe("handlerSafe", function() {
+        it("Should set callbackWaitsForEmptyEventLoop to false", async () => {
+            await handlerSafe(unmarshallStub, processGameStub, mockEvent, mockContext)
+            expect(mockContext.callbackWaitsForEmptyEventLoop).to.be.false
+        })
 
-//   it("Should only invoke processGame if eventName is 'INSERT'",  async () => {
-//     const processGameStub = sinon.stub(deps, "processGame").resolves()
+        it("Should resolve if there is no record to be processed", async () => {
+            mockEvent.Records = []
+            const result = await handlerSafe(
+                unmarshallStub, 
+                processGameStub, 
+                mockEvent, 
+                mockContext)
+            expect(result).to.equal("NO_RECORD_TO_PROCESS")
+        })
 
-//     event.Records[0].eventName = "UPDATE"
-//     await processPendingGames.processPendingGames(deps)(event, context)
+        it("Should reject if unmarshalling all records fails", async () => {
+            unmarshallStub = fake.throws()
+            try {
+                await handlerSafe(
+                    unmarshallStub, 
+                    processGameStub, 
+                    mockEvent, 
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_UNMARSHALL_DATA")
+            }
+        })
 
-//     assert.equal(processGameStub.calledOnce, false)
-    
-//     event.Records[0].eventName = "INSERT"
-//     await processPendingGames.processPendingGames(deps)(event, context)
+        it("Should reject if none of the records were processed", async () => {
+            const testError = new Error("TEST_ERROR")
+            processGameStub = fake.rejects(testError)
+            try {
+                await handlerSafe(
+                    unmarshallStub, 
+                    processGameStub, 
+                    mockEvent, 
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(testError.message)
+            }
+        })
 
-//     assert.equal(processGameStub.calledOnce, true)
-
-//     processGameStub.restore()
-//   });
-
-//   it("Should invoke processGame with correct args",  async () => {
-
-//     const processGameStub = sinon.stub(deps, "processGame").resolves()
-//     await processPendingGames.processPendingGames(deps)(event, context)
-
-//     const games = event.Records.map(r => ({
-//         gameId: r.dynamodb.Keys._id.S
-//     }))
-
-//     assert.equal(processGameStub.calledOnce, true)
-//     assert.deepInclude(processGameStub.getCall(0).args[0], games[0])
-
-//     processGameStub.rejects(new Error("PROCESS_GAME_TEST_ERROR"))
-
-//     try {
-//         await processPendingGames.processPendingGames(deps)(event, context)
-//         throw new Error("FALSE PASS")
-//     }catch(err) {
-//         assert.equal(err.message, "PROCESS_GAME_TEST_ERROR")
-//     }
-
-//     processGameStub.restore()
-//   });
-
-//   it("Should call PlayersModel.getPlayersConIds with correct args",  async () => {
-
-//     await processPendingGames.processPendingGames(deps)(event, context)
-
-//     assert.equal(getPlayersConIdsStub.calledOnce, true)
-//     assert.sameMembers(getPlayersConIdsStub.getCall(0).args[0], ["playerOne", "playerTwo"])
-
-//     class TestError extends Error {
-//       constructor(...params) {
-//         super(params);
-//         this.name = "CONNECTING_PLAYER";
-//       }
-//     }
-
-//     broadCastMessageStub.rejects(new TestError())
-
-//     try {
-//         await processPendingGames.processPendingGames(deps)(event, context)
-//         throw new Error("FALSE PASS")
-//     }catch(err) {
-//       assert.equal(err.name, "CONNECTING_PLAYER")
-//     }
-
-//   })
-
-//   it("Should call braodcastMessage with correct args",  async () => {
-
-//     await processPendingGames.processPendingGames(deps)(event, context)
-
-//     assert.equal(broadCastMessageStub.calledOnce, true)
-//     assert.sameMembers(broadCastMessageStub.getCall(0).args[0], ["conIdOne", "conIdTwo"])
-
-//     class TestError extends Error {
-//       constructor(...params) {
-//         super(params);
-//         this.name = "CONNECTING_PLAYER";
-//       }
-//     }
-
-//     broadCastMessageStub.rejects(new TestError())
-
-//     try {
-//         await processPendingGames.processPendingGames(deps)(event, context)
-//         throw new Error("FALSE PASS")
-//     }catch(err) {
-//         console.log(err)
-//       assert.equal(err.name, "CONNECTING_PLAYER")
-//     }
-
-//   })
-
-
-// });
+        it("Should resolve to an array of processed games", async () => {
+            const result = await handlerSafe(
+                            unmarshallStub, 
+                            processGameStub, 
+                            mockEvent, 
+                            mockContext)
+            expect(result).to.deep.equal([mockResponse])
+        })
+    })
+})

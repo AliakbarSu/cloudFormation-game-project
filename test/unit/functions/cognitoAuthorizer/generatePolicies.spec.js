@@ -1,74 +1,106 @@
-// const GP = require('../../../../src/cognitoAuthorizer/generatePolicy')
-// const { generateAllow, generateDeny } = require('../../../../src/cognitoAuthorizer/generatePolicies')
+
+const {
+    generateAllow,
+    generateDeny
+} = require('../../../../src/cognitoAuthorizer/generatePolicies')
+
+const {
+    invalidPrincipleIdError,
+    invalidResourceError,
+    invalidEmail
+} = require('../../../../src/opt/nodejs/utils/errors/general')
 
 
 
+const chai = require('chai');
+const expect = chai.expect
+const sinon = require('sinon')
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
-// const chai = require('chai');
-// const expect = chai.expect
-// const sinon = require('sinon')
-// const fake = sinon.fake
 
+describe("cognitoAuthorizer::generatePolicies", function() {
+    let mockPrincipalId, mockResource, mockUserEmail
 
-// describe("cognitoAuthorizer::generatePolicies", function() {
-//     let generatePolicyStub
+    this.beforeEach(() => {
+        mockPrincipalId = "test_principal_id"
+        mockResource = "test_resource"
+        mockUserEmail = "test@example.com"
+    })
 
-//     let mockPolicy = "test_policy"
+    describe("generateAllow", function() {
+        it("Should reject if principal id is invalid", async () => {
+            try {
+                await generateAllow(null, mockResource, mockUserEmail)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidPrincipleIdError().message)
+            }
+        })
 
-//     this.beforeAll(() => {
-//         generatePolicyStub = sinon.stub(GP, "generatePolicy").returns(mockPolicy)
-//     })
+        it("Should reject if resource is invalid", async () => {
+            try {
+                await generateAllow(mockPrincipalId, null, mockUserEmail)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidResourceError().message)
+            }
+        })
 
-//     this.beforeEach(() => {
-//         generatePolicyStub.resetHistory()
-//     })
+        it("Should reject if userEmail is invalid", async () => {
+            try {
+                await generateAllow(mockPrincipalId, mockResource, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidEmail().message)
+            }
+        })
 
-//     this.afterAll(() => {
-//         generatePolicyStub.restore()
-//     })
+        it("Should resolve to an allow policy", async () => {
+            const policy = await generateAllow(mockPrincipalId, mockResource, mockUserEmail)
+            expect(policy.policyDocument.Statement[0].Effect).to.equal("Allow")
+            expect(policy.policyDocument.Statement[0].Resource).to.equal(mockResource)
+            expect(policy.principalId).to.equal(mockPrincipalId)
+            expect(policy.context.userEmail).to.equal(mockUserEmail)
+        })
+    })
 
-//     describe("generateAllow", function() {
-//         let principalId, effect, resource, userEmail
+    describe("generateDeny", function() {
+        it("Should reject if principal id is invalid", async () => {
+            try {
+                await generateDeny(null, mockResource, mockUserEmail)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidPrincipleIdError().message)
+            }
+        })
 
-//         principalId = "test_principal_id"
-//         effect = "Allow"
-//         resource = "test_resource"
-//         userEmail = "test_user"
+        it("Should reject if resource is invalid", async () => {
+            try {
+                await generateDeny(mockPrincipalId, null, mockUserEmail)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidResourceError().message)
+            }
+        })
 
-//         it("Should invoke generatePolicy and pass the correct args", () => {
-//             generateAllow(principalId, resource, userEmail)
-//             expect(generatePolicyStub.calledOnce).to.be.true
-//             expect(generatePolicyStub.getCall(0).args[0]).to.equal(principalId)
-//             expect(generatePolicyStub.getCall(0).args[1]).to.equal(effect)
-//             expect(generatePolicyStub.getCall(0).args[2]).to.equal(resource)
-//             expect(generatePolicyStub.getCall(0).args[3]).to.equal(userEmail)
-//         })
+        it("Should reject if userEmail is invalid", async () => {
+            try {
+                await generateDeny(mockPrincipalId, mockResource, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidEmail().message)
+            }
+        })
 
-//         it("Should return the allow policy", () => {
-//             const policy = generateAllow(principalId, resource, userEmail)
-//             expect(policy).to.equal(mockPolicy)
-//         })
-//     })
+        it("Should resolve to a deny policy", async () => {
+            const policy = await generateDeny(mockPrincipalId, mockResource, mockUserEmail)
+            expect(policy.policyDocument.Statement[0].Effect).to.equal("Deny")
+            expect(policy.policyDocument.Statement[0].Resource).to.equal(mockResource)
+            expect(policy.principalId).to.equal(mockPrincipalId)
+            expect(policy.context.userEmail).to.equal(mockUserEmail)
+        })
+    })
 
-//     describe("generateDeny", function() {
-//         let principalId, effect, resource, userEmail
-
-//         principalId = "test_principal_id"
-//         effect = "Deny"
-//         resource = "test_resource"
-//         userEmail = "test_user"
-
-//         it("Should invoke generatePolicy and pass the correct args", () => {
-//             generateDeny(principalId, resource, userEmail)
-//             expect(generatePolicyStub.calledOnce).to.be.true
-//             expect(generatePolicyStub.getCall(0).args[0]).to.equal(principalId)
-//             expect(generatePolicyStub.getCall(0).args[1]).to.equal(effect)
-//             expect(generatePolicyStub.getCall(0).args[2]).to.equal(resource)
-//         })
-
-//         it("Should return the deny policy", () => {
-//             const policy = generateDeny(principalId, resource, userEmail)
-//             expect(policy).to.equal(mockPolicy)
-//         })
-//     })
-// })
+})

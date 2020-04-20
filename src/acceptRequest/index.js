@@ -34,7 +34,6 @@ const acceptRequestHandler = curry(async (acceptRequest, parseToken, convertSubT
         
     try {
         const claims = await parseToken(process.env.KEYS_URL, token)
-        console.log(claims)
         const pid = await convertSubToUid(get("sub", claims));
         const request = await acceptRequest(requestId, pid)
         return request

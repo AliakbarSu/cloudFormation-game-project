@@ -1,215 +1,549 @@
-// let layerPath = "../../../../src/opt/nodejs/";
-// if(!process.env['DEV']) {
-//     layerPath = "/opt/nodejs/"
-// }
+const {
+    invalidCoordinatesError,
+    failedToGetMaxDistanceError,
+    failedToParseDataError,
+    failedToPerformMatchPlayersOperationError,
+    handlerSafe,
+    constructBroadcastMessage
+} = require('../../../../src/matchPlayers/matchPlayers')
+
+const chai = require('chai');
+const expect = chai.expect
+const sinon = require('sinon')
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
+
+describe('MatchPlayers', function() {
+    let parserStub, mockLatitude, mockLongitude,
+    mockCategory, mockLanguage, mockLevel,
+    mockPid, mockMaxDistance, mockSQS_REQUEST_QUE_URL,
+    mockConnectionId, searchForPlayersStub, broadcastMessageStub,
+    markPlayersAsPlayingStub, addRequestStub, addRequestSqsStub,
+    mockEvent, mockContext, mockMessage, mockData, mockPlayers, mockRequestId
+
+    this.beforeEach(() => {
+        mockLatitude = 123
+        mockLongitude = 123
+        mockCategory = "test_category"
+        mockLanguage = "test_language"
+        mockLevel = 2
+        mockPid = "test_pid"
+        mockMessage = "test_message"
+        mockData = "test_data"
+        mockMaxDistance = 12
+        mockSQS_REQUEST_QUE_URL = "http://test.com"
+        mockConnectionId = "test_connection_id"
+        mockPlayers = [{_id: mockPid, connectionId: mockConnectionId}]
+        mockRequestId = "test_request_id"
+        mockContext = {
+            callbackWaitsForEmptyEventLoop: true
+        }
+        mockEvent = {
+            detail: {
+                fullDocument: {
+                    category: mockCategory,
+                    language: mockLanguage,
+                    level: mockLevel,
+                    _id: mockPid,
+                    connectionId: mockConnectionId,
+                    location: {coordinates: [mockLatitude, mockLongitude]}
+                }
+            }
+        }
+        searchForPlayersStub = fake.resolves(mockPlayers)
+        broadcastMessageStub = fake.resolves()
+        markPlayersAsPlayingStub = fake.resolves()
+        addRequestStub = fake.resolves(mockRequestId)
+        addRequestSqsStub = fake.resolves()
+        parserStub = (arg) => arg
+    })
+
+    describe("invalidCoordinatesError", function() {
+        it("Should return an error object", () => {
+            expect(invalidCoordinatesError().message).to.equal("USER_DATA_CONTAINS_INVALID_COORDINATES")
+        })
+    })
+
+    describe("failedToGetMaxDistanceError", function() {
+        it("Should return an error object", () => {
+            expect(failedToGetMaxDistanceError().message).to.equal("FAILED_TO_GET_MAX_DISTANCE_ENV_VARIABLE")
+        })
+    })
+
+    describe("failedToParseDataError", function() {
+        it("Should return an error object", () => {
+            expect(failedToParseDataError().message).to.equal("FAILED_TO_PARSE_DATA")
+        })
+    })
+
+    describe("failedToPerformMatchPlayersOperationError", function() {
+        it("Should return an error object", () => {
+            expect(failedToPerformMatchPlayersOperationError().message)
+            .to.equal("FAILED_TO_COMPLETE_MATCH_PLAYERS")
+        })
+    })
+
+    describe("constructBroadcastMessage", function() {
+        it("Should reject if parsing fails", async () => {
+            parserStub = fake.throws()
+            try {
+                await constructBroadcastMessage(parserStub, mockMessage, mockData)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_PARSE_DATA")
+            }
+        })
+
+        it("Should resolve to an json object", async () => {
+            const testData = "test_data"
+            parserStub = fake.returns(testData)
+            const result = await constructBroadcastMessage(parserStub, mockMessage, mockData)
+            expect(result).to.equal(testData)
+            expect(parserStub.getCall(0).args[0].message).to.equal(mockMessage)
+            expect(parserStub.getCall(0).args[0].data).to.equal(mockData)
+        })
+    })
+
+    describe("handlerSafe", function() {
+        it("Should reject if coordinates are missing", async () => {
+            mockEvent.detail.fullDocument.location.coordinates = [mockLatitude]
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("USER_DATA_CONTAINS_INVALID_COORDINATES")
+            }
+        })
+
+        it("Should reject if connection id is invalid", async () => {
+            mockEvent.detail.fullDocument.connectionId = null
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_CONNECTION_ID_PROVIDED")
+            }
+        })
+
+        it("Should reject if latitude is invalid", async () => {
+            mockEvent.detail.fullDocument.location.coordinates = [null, mockLongitude]
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_LATITUDE_PROVIDED")
+            }
+        })
+
+        it("Should reject if longitude is invalid", async () => {
+            mockEvent.detail.fullDocument.location.coordinates[1] = -1
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_LONGITUDE_PROVIDED")
+            }
+        })
+
+        it("Should reject if category is invalid", async () => {
+            mockEvent.detail.fullDocument.category = null
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_CATEGORY_PROVIDED")
+            }
+        })
+
+        it("Should reject if language is invalid", async () => {
+            mockEvent.detail.fullDocument.language = null
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_LANGUAGE_PROVIDED")
+            }
+        })
+
+        it("Should reject if level is invalid", async () => {
+            mockEvent.detail.fullDocument.level = null
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_LEVEL_PROVIDED")
+            }
+        })
+
+        it("Should reject if playerId is invalid", async () => {
+            mockEvent.detail.fullDocument._id = null
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_PID_PROVIDED")
+            }
+        })
+
+        it("Should reject if sqs que url is invalid", async () => {
+            process.env.SQS_REQUEST_QUE_URL = null
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    null,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_URL_PROVIDED")
+            }
+        })
+
+        it("Should reject if maxDistance is invalid", async () => {
+            process.env.MAX_DISTANCE = null
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    null,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_MAX_DISTANCE_ENV_VARIABLE")
+            }
+        })
+
+        it("Should reject if searchForPlayers fails", async () => {
+            searchForPlayersStub = fake.rejects()
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_COMPLETE_MATCH_PLAYERS")
+            }
+        })
+
+        it("Should resolve to null if no players were found", async () => {
+            searchForPlayersStub = fake.resolves([])
+            const result = await handlerSafe(
+                            searchForPlayersStub,
+                            broadcastMessageStub,
+                            markPlayersAsPlayingStub,
+                            addRequestStub,
+                            addRequestSqsStub,
+                            parserStub,
+                            mockMaxDistance,
+                            mockSQS_REQUEST_QUE_URL,
+                            mockEvent,
+                            mockContext)
+            expect(result).to.be.null
+        })
+
+        it("Should pass the correct arguments to searchForPlayers", async () => {
+            await handlerSafe(
+                searchForPlayersStub,
+                broadcastMessageStub,
+                markPlayersAsPlayingStub,
+                addRequestStub,
+                addRequestSqsStub,
+                parserStub,
+                mockMaxDistance,
+                mockSQS_REQUEST_QUE_URL,
+                mockEvent,
+                mockContext)
+            expect(searchForPlayersStub.getCall(0).args[0]).to.equal(mockPid)
+            expect(searchForPlayersStub.getCall(0).args[1]).to.equal(mockLatitude)
+            expect(searchForPlayersStub.getCall(0).args[2]).to.equal(mockLongitude)
+            expect(searchForPlayersStub.getCall(0).args[3]).to.equal(mockLanguage)
+            expect(searchForPlayersStub.getCall(0).args[4]).to.equal(mockCategory)
+            expect(searchForPlayersStub.getCall(0).args[5]).to.equal(mockLevel)
+            expect(searchForPlayersStub.getCall(0).args[6]).to.equal(mockMaxDistance)
+        })
+
+        it("Should reject if searchForPlayers fails", async () => {
+            searchForPlayersStub = fake.rejects()
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_COMPLETE_MATCH_PLAYERS")
+            }
+        })
+
+        it("Should reject if broadcastMessages fails", async () => {
+            broadcastMessageStub = fake.rejects()
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_COMPLETE_MATCH_PLAYERS")
+            }
+        })
+
+        it("Should pass the correct arguments to broadcastMessages", async () => {
+            await handlerSafe(
+                searchForPlayersStub,
+                broadcastMessageStub,
+                markPlayersAsPlayingStub,
+                addRequestStub,
+                addRequestSqsStub,
+                parserStub,
+                mockMaxDistance,
+                mockSQS_REQUEST_QUE_URL,
+                mockEvent,
+                mockContext)
+            expect(broadcastMessageStub.getCall(0).args[0][0]).to.equal(mockConnectionId)
+            expect(broadcastMessageStub.getCall(0).args[1].message).to.equal("TEST_REQUEST")
+            expect(broadcastMessageStub.getCall(0).args[1].data).to.equal("TEST_DATA")
+        })
+
+        it("Should reject if markPlayersAsPlaying fails", async () => {
+            markPlayersAsPlayingStub = fake.rejects()
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_COMPLETE_MATCH_PLAYERS")
+            }
+        })
+
+        it("Should pass the correct arguments to markPlayersAsPlaying", async () => {
+            await handlerSafe(
+                searchForPlayersStub,
+                broadcastMessageStub,
+                markPlayersAsPlayingStub,
+                addRequestStub,
+                addRequestSqsStub,
+                parserStub,
+                mockMaxDistance,
+                mockSQS_REQUEST_QUE_URL,
+                mockEvent,
+                mockContext)
+            expect(markPlayersAsPlayingStub.getCall(0).args[0][0]).to.equal(mockPid)
+        })
+
+        it("Should reject if addRequest fails", async () => {
+            addRequestStub = fake.rejects()
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_COMPLETE_MATCH_PLAYERS")
+            }
+        })
+
+        it("Should pass the correct arguments to addRequest", async () => {
+            await handlerSafe(
+                searchForPlayersStub,
+                broadcastMessageStub,
+                markPlayersAsPlayingStub,
+                addRequestStub,
+                addRequestSqsStub,
+                parserStub,
+                mockMaxDistance,
+                mockSQS_REQUEST_QUE_URL,
+                mockEvent,
+                mockContext)
+            expect(addRequestStub.getCall(0).args[0][0].pid).to.equal(mockPid)
+        })
+
+        it("Should reject if addRequestSqs fails", async () => {
+            addRequestSqsStub = fake.rejects()
+            try {
+                await handlerSafe(
+                    searchForPlayersStub,
+                    broadcastMessageStub,
+                    markPlayersAsPlayingStub,
+                    addRequestStub,
+                    addRequestSqsStub,
+                    parserStub,
+                    mockMaxDistance,
+                    mockSQS_REQUEST_QUE_URL,
+                    mockEvent,
+                    mockContext)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_COMPLETE_MATCH_PLAYERS")
+            }
+        })
+
+        it("Should pass the correct arguments to addRequestSqs", async () => {
+            await handlerSafe(
+                searchForPlayersStub,
+                broadcastMessageStub,
+                markPlayersAsPlayingStub,
+                addRequestStub,
+                addRequestSqsStub,
+                parserStub,
+                mockMaxDistance,
+                mockSQS_REQUEST_QUE_URL,
+                mockEvent,
+                mockContext)
+            expect(addRequestSqsStub.getCall(0).args[0]).to.equal(mockSQS_REQUEST_QUE_URL)
+            expect(addRequestSqsStub.getCall(0).args[1]).to.equal(mockRequestId)
+            expect(addRequestSqsStub.getCall(0).args[2][0]).to.equal(mockPid)
+        })
+
+
+        it("Should create a new request if everying went well", async () => {
+            const result = await handlerSafe(
+                            searchForPlayersStub,
+                            broadcastMessageStub,
+                            markPlayersAsPlayingStub,
+                            addRequestStub,
+                            addRequestSqsStub,
+                            parserStub,
+                            mockMaxDistance,
+                            mockSQS_REQUEST_QUE_URL,
+                            mockEvent,
+                            mockContext)
+            expect(result).to.equal("NEW_REQUEST_ADDED")
+        })
+    })
 
 
 
-// const matchPlayers = require("../../../../src/matchPlayers/matchPlayers");
-// const SqsConnector = require(layerPath + 'sqs.connector')
-// const PlayersModel = require(layerPath + 'models/players')
-// const ApigatewayConnector = require(layerPath + 'apigateway.connector')
-// const RequestModel = require(layerPath + 'models/request.model')
-// const RM = require(layerPath + 'models/request.model')
-// const db = require(layerPath + 'dynamodb.connector')
-// const CONSTANTS = require(layerPath + 'constants')
-
-// const AWS = require('aws-sdk')
-// const uuid = require('uuid')
-// var chai = require('chai');
-// const assert = chai.assert
-// const sinon = require('sinon')
-
-// describe('MatchPlayers', function() {
-//   let event, context, deps;
-//   let searchForPlayersStub, markAsPlayingStub, broadCastMessageStub, addRequestRequestModelStub, addRequestSQSStub;
-//   let foundPlayers;
-
-//   this.beforeEach(() => {
-//     event = {
-//       detail: {
-//         fullDocument: {
-//           _id: "testUser",
-//           location: {
-//             type: "Point",
-//             coordinates: [124, 123]
-//           },
-//           category: "testMe",
-//           language: "english",
-//           level: 1,
-//           connectionId: "testMeAsWell"
-//         }
-//       }
-//     }
-
-//     context =  {
-//       callbackWaitsForEmptyEventLoop: true
-//     }
-
-//     deps = {
-//       PlayersModel: PlayersModel.obj,
-//       RequestModel,
-//       ApigatewayConnector,
-//       SqsConnector,
-//       db,
-//       getId: uuid.v4,
-//       AWS,
-//       CONSTANTS,
-//       SearchPlayer: matchPlayers.searchPlayer
-//     }
-
-//     foundPlayers = [
-//       {...event.detail.fullDocument, _id: "TestUserOne"},
-//       {...event.detail.fullDocument, _id: "TestUserTwo"}    
-//     ]
-
-//     searchForPlayersStub = sinon.stub(deps.PlayersModel, "searchForPlayers").resolves(foundPlayers)
-//     markAsPlayingStub = sinon.stub(deps.PlayersModel, "markPlayersAsPlaying").resolves()
-//     broadCastMessageStub = sinon.stub(deps.ApigatewayConnector.prototype, "broadcastMessage").resolves()
-//     addRequestRequestModelStub = sinon.stub(RM.requestModel, "addRequest").resolves("TEST REQUEST")
-//     addRequestSQSStub = sinon.stub(deps.SqsConnector.prototype, "addRequest").resolves()
-//   })
-
-//   this.afterEach(() => {
-//     searchForPlayersStub.restore()
-//     markAsPlayingStub.restore()
-//     broadCastMessageStub.restore()
-//     addRequestRequestModelStub.restore()
-//     addRequestSQSStub.restore()
-//   })
-
-
-
-//   it("Should call searchPlayer with correct args",  async () => {
-//     const stub = sinon.stub(deps, "SearchPlayer").resolves()
-//     await matchPlayers.matchPlayers(deps)(event, context)
-//     assert.equal(stub.calledOnce, true)
-//     const userData = {
-//       _id: event.detail.fullDocument._id,
-//       location: {
-//         lat: 123,
-//         long: 124
-//       },
-//       category: "testMe",
-//       level: 1,
-//       language: "english",
-//       connectionId: "testMeAsWell"
-//     }
-//     assert.deepNestedInclude(stub.getCall(0).args[0], userData)
-//     assert.deepNestedInclude(stub.getCall(0).args[1], deps)
-//     stub.restore()
-//   });
-
-//   it("Should call PlayersModel.searchForPlayers with correct args",  async () => {
-//     searchForPlayersStub.resolves([])
-//     await matchPlayers.matchPlayers(deps)(event, context)
-//     assert.equal(searchForPlayersStub.calledOnce, true)
-//     const userData = {
-//       _id: event.detail.fullDocument._id,
-//       location: {
-//         lat: 123,
-//         long: 124
-//       },
-//       category: "testMe",
-//       level: 1,
-//       language: "english",
-//       connectionId: "testMeAsWell"
-//     }
-//     assert.deepNestedInclude(searchForPlayersStub.getCall(0).args[0], userData)
-    
-//     searchForPlayersStub.rejects(new Error("TEST ERROR"))
-//     try {
-//       await matchPlayers.matchPlayers(deps)(event, context)
-//       throw new Error("FALSE PASS")
-//     }catch(err) {
-//       assert.equal(err.message, "TEST ERROR")
-//     }
-    
-//   });
-
- 
-//   it("Should call braodcastMessage with correct args",  async () => {
-//     await matchPlayers.matchPlayers(deps)(event, context)
-
-//     assert.equal(broadCastMessageStub.calledOnce, true)
-    
-//     const connectionIds = [event.detail.fullDocument.connectionId, ...foundPlayers.map(p => p.connectionId)]
-//     const request = JSON.stringify({message: "REQUEST", data: "TEST REQUEST" })
-//     assert.sameMembers(broadCastMessageStub.getCall(0).args[0], connectionIds)
-//     assert.deepNestedInclude(broadCastMessageStub.getCall(0).args[1], request)
-
-//     class TestError extends Error {
-//       constructor(...params) {
-//         super(params);
-//         this.name = "CONNECTING_PLAYER";
-//       }
-//     }
-
-//     broadCastMessageStub.rejects(new TestError())
-
-//     try {
-//       await matchPlayers.matchPlayers(deps)(event, context)
-//       throw new Error("FALSE PASS")
-//     }catch(err) {
-//       assert.equal(err.name, "CONNECTING_PLAYER")
-//     }
-
-//   })
-
-
-//   it("Should call markPlayersAsPlaying with correct args",  async () => {
-//     await matchPlayers.matchPlayers(deps)(event, context)
-
-//     assert.equal(markAsPlayingStub.calledOnce, true)
-
-//     const playerIds = [event.detail.fullDocument._id, ...foundPlayers.map(p => p._id)]
-//     assert.sameMembers(markAsPlayingStub.getCall(0).args[0], playerIds)
-//   })
-
-
-//   it("Should call addRequest with correct args",  async () => {
-//     await matchPlayers.matchPlayers(deps)(event, context)
-
-//     assert.equal(addRequestRequestModelStub.calledOnce, true)
-    
-//     const players = [{
-//       pid: event.detail.fullDocument._id,
-//       connectionId: event.detail.fullDocument.connectionId
-//     }, ...foundPlayers.map(p => ({pid: p._id, connectionId: p.connectionId}))]
-//     assert.sameDeepMembers(addRequestRequestModelStub.getCall(0).args[0], players)
-
-//     addRequestRequestModelStub.rejects(new Error("TEST_ERROR_ADD_REQUEST_REQUEST_MODEL"))
-//     try {
-//       await matchPlayers.matchPlayers(deps)(event, context)
-//       throw new Error("FALSE PASS")
-//     }catch(err) {
-//       assert.equal(err.message, "TEST_ERROR_ADD_REQUEST_REQUEST_MODEL")
-//     }
-//   })
-
-//   it("Should call SQS.addRequest with correct args",  async () => {
-//     await matchPlayers.matchPlayers(deps)(event, context)
-
-//     assert.equal(addRequestSQSStub.calledOnce, true)
-
-//     const playerIds = [
-//       event.detail.fullDocument._id,
-//       ...foundPlayers.map(p => p._id)
-//     ]
-    
-//     assert.equal(addRequestSQSStub.getCall(0).args[0], "TEST REQUEST")
-//     assert.sameMembers(addRequestSQSStub.getCall(0).args[1], playerIds)
-//     assert.equal(addRequestSQSStub.getCall(0).args[2], event.detail.fullDocument.level)
-//     assert.equal(addRequestSQSStub.getCall(0).args[3], event.detail.fullDocument.category)
-//     assert.equal(addRequestSQSStub.getCall(0).args[4], event.detail.fullDocument.language)
-
-//     addRequestSQSStub.rejects(new Error("TEST_ERROR_ADD_REQUEST_SQS_CONNECTOR"))
-//     try {
-//       await matchPlayers.matchPlayers(deps)(event, context)
-//       throw new Error("FALSE PASS")
-//     }catch(err) {
-//       assert.equal(err.message, "TEST_ERROR_ADD_REQUEST_SQS_CONNECTOR")
-//     }
-//   })
-
-// });
+})

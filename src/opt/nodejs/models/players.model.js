@@ -385,7 +385,7 @@ module.exports = {
         updatePlayersLocationSafe(getConnection(currentCon)),
     registerConnectionId: currentCon => registerConnectionIdSafe(getConnection(currentCon)),
     deregisterConnectionId: currentCon => deregisterConnectionIdSafe(getConnection(currentCon)),
-    searchForPlayers: currentCon => searchForPlayersSafe(getConnection(currentCon))
+    searchForPlayers: currentCon => searchForPlayersSafe(getConnection(currentCon), mongoose.Types.ObjectId)
 }
 
 

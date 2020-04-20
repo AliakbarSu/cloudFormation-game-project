@@ -1,24 +1,46 @@
-// Bootstraps the application
-require('./generatePolicy')
-function _generateAllow(generatePolicy) {
-    return (principalId, resource, userEmail) => {
-        return generatePolicy(principalId, "Allow", resource, userEmail);
-    }
-} 
+let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 
-function _generateDeny (generatePolicy) {
-    return (principalId, resource) => {
-        return generatePolicy(principalId, "Deny", resource);
-    }
-}
+const { curry } = require('lodash/fp')
+
+const { generatePolicy } = require('./generatePolicy')
+
+const {
+    isValidPrincipleId,
+    isValidResource,
+    isValidEmail
+} = require(layerPath + 'utils/validators/index')
+const {
+    invalidPrincipleIdError,
+    invalidResourceError,
+    invalidEmail
+} = require(layerPath + 'utils/errors/general')
 
 
-const bottle = require("bottlejs").pop("click")
-bottle.service("generateAllow", _generateAllow, "generatePolicy")
-bottle.service("generateDeny", _generateDeny, "generatePolicy")
 
-module.exports = {
-    generateAllow: _generateAllow,
-    generateDeny: _generateDeny
-}
+exports.generateAllow = curry((principalId, resource, userEmail) => {
+    if(!isValidPrincipleId(principalId))
+        return Promise.reject(invalidPrincipleIdError())
+
+    if(!isValidResource(resource))
+        return Promise.reject(invalidResourceError())
+
+    if(!isValidEmail(userEmail))
+        return Promise.reject(invalidEmail())
+
+    return Promise.resolve(generatePolicy(principalId, "Allow", resource, userEmail))
+})
+
+exports.generateDeny = curry((principalId, resource, userEmail) => {
+    if(!isValidPrincipleId(principalId))
+        return Promise.reject(invalidPrincipleIdError())
+
+    if(!isValidResource(resource))
+        return Promise.reject(invalidResourceError())
+
+    if(!isValidEmail(userEmail))
+        return Promise.reject(invalidEmail())
+
+    return Promise.resolve(generatePolicy(principalId, "Deny", resource, userEmail))
+})
+
 

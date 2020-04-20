@@ -23,8 +23,12 @@ const invalidLanguageError = () => new Error("INVALID_LANGUAGE_PROVIDED")
 const invalidCategoryError = () => new Error("INVALID_CATEGORY_PROVIDED")
 const invalidLevelError = () => new Error("INVALID_LEVEL_PROVIDED")
 const invalidNumberError = () => new Error("INVALID_NUMBER_PROVIDED")
-
+const invalidPrincipleIdError = () => new Error("INVALID_PRINCIPLE_ID_PROVIDED")
+const invalidResourceError = () => new Error("INVALID_RESOURCE_PROVIDED")
+ 
 module.exports = {
+    invalidPrincipleIdError, 
+    invalidResourceError,
     invalidNumberError,
     invalidLanguageError,
     invalidCategoryError,

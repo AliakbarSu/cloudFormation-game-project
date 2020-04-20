@@ -1,35 +1,74 @@
+let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 
-const processRequest = (gameModel, requestModel) => async (request) => {
+const { curry, get, getOr } = require("lodash/fp")
+const { isValidRequestId } = require(layerPath + 'utils/validators/index')
+const { invalidRequestIdError } = require(layerPath + 'utils/errors/general')
+const { getPendingRequest } = require(layerPath + 'models/request.model')
+const { createGame } = require(layerPath + 'models/game.model')
+
+const failedToProcessRequestError = () => new Error("FAILED_TO_PROCESS_REQUEST")
+const failedToGetPendingRequestError = () => new Error("FAILED_TO_GET_PENDING_REQUEST_ERROR")
+const failedToConvertPlayersObjectToArrayFormError = () => new Error("FAILED_TO_CONVERT_OBJECT_TO_ARRAY_FORM")
+
+
+const convertPlayersObjectToArrayForm = curry(async (converter, playersObj) => {
     try {
-        const results = await requestModel.getPendingRequest(request);
-        const requestData = results.Items[0];
-        if(results.Count > 0) {
-            const playersObjKeys = Object.keys(requestData.players)
-            const playersArray = playersObjKeys.map(key => ({...requestData.players[key]}))
-            const readyPlayers = playersArray.filter(p => p.accepted == true);
-            if(readyPlayers.length > 0) {
-                return gameModel.createGame(
-                    request.requestId, 
-                    requestData.players,
-                    {
-                        level: requestData.level,
-                        subject: requestData.category,
-                        language: requestData.language,
-                        limit: 5
-                    }
-                )
-            }else {
-                // cancel request and notify user
-                console.log(`for request with ID ${request}, no player accepted the request`)
-                return;
-            }
-        }else {
-            return Promise.resolve("Nothing found")
-        } 
+        const result = converter(playersObj)
+        const mapedResult = result.map(key => ({...playersObj[key]}))
+        return Promise.resolve(mapedResult)
     }catch(err) {
-        err.requestId = request.requestId
-        throw err;
+        console.log(err)
+        return Promise.reject(failedToConvertPlayersObjectToArrayFormError())
     }
+})
+
+const constructGameParamsObject = curry((subject, level, language, limit) => ({
+    subject,
+    level,
+    language,
+    limit
+}))
+
+
+const processRequestSafe = curry(async (getPendingRequest, createGame, converter, limit, requestId) => {
+    
+    if(!isValidRequestId(requestId))
+        return Promise.reject(invalidRequestIdError())
+    
+    try {
+        const result = await getPendingRequest(requestId)
+        const pendingRequest = getOr([], "Items", result)[0]
+
+        if(!pendingRequest)
+            return Promise.reject(failedToGetPendingRequestError())
+
+        const category = get("category", pendingRequest)
+        const language = get("language", pendingRequest)
+        const level = get("level", pendingRequest)
+        const players = get("players", pendingRequest)
+        const playersArray = await convertPlayersObjectToArrayForm(converter, players)
+        const readyPlayers = playersArray.filter(p => p.accepted == true)
+
+        if(readyPlayers.length === 0)
+            return Promise.resolve("NO_PLAYERS_HAS_ACCEPTED_THE_REQUEST")
+
+        const params = constructGameParamsObject(category, level, language, limit)
+        await createGame(requestId, players, params)
+        return Promise.resolve("GAME_CREATED_SUCCESSFULLY")
+    }catch(err) {
+        console.log(err)
+        return Promise.reject(failedToProcessRequestError())
+    }
+})
+
+
+module.exports = {
+    failedToProcessRequestError,
+    failedToGetPendingRequestError,
+    failedToConvertPlayersObjectToArrayFormError,
+    convertPlayersObjectToArrayForm,
+    constructGameParamsObject,
+    processRequestSafe,
+    processRequest: processRequestSafe(getPendingRequest, createGame, Object.keys, process.QUESTIONS_LIMIT)
 }
 
-module.exports = processRequest

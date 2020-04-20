@@ -2,11 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: A Node.js web service deployed to AWS Lambda.
 Parameters:
-  Stage:
+  StageApi:
     Type: String
     Description: The name for a project pipeline stage, such as Staging or Prod, for
       which resources are provisioned and deployed.
-    Default: production
+    Default: prod
 Resources:
   ApiGwAccountConfig:
     DependsOn:
@@ -203,9 +203,9 @@ Resources:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       StageName:
-        Fn::Sub: ${Stage}
+        Fn::Sub: ${StageApi}
       Description:
-        Fn::Sub: ${Stage} traffic
+        Fn::Sub: ${StageApi} traffic
       DeploymentId:
         Ref: ClickCollectWebSocketDeployment
       ApiId:
@@ -509,8 +509,6 @@ Resources:
             - apigateway.amazonaws.com
           Action: sts:AssumeRole
       Path: /
-      ManagedPolicyArns:
-      - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
   FetchLambdaCodeFromS3:
     Type: AWS::IAM::Policy
     Properties:

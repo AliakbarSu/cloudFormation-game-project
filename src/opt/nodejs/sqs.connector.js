@@ -151,7 +151,7 @@ module.exports = {
   addRequestSafe,
   scheduleNextQuestionSafe,
   validatePlayerIds,
-  addRequest: addRequestSafe(new aws.SQS({apiVersion: '2012-11-05'}), JSON.stringify),
+  addRequestSqs: addRequestSafe(new aws.SQS({apiVersion: '2012-11-05'}), JSON.stringify),
   scheduleNextQuestion: scheduleNextQuestionSafe(new aws.SQS({apiVersion: '2012-11-05'}))
 }
 

@@ -1,97 +1,96 @@
-// const handler = require('../../../../src/cognitoAuthorizer/index').handler
+const { 
+    failedToAuthenticateUserError,
+    unAuthorizedError,
+    invalidMethodArnError,
+    handlerSafe
+ } = require('../../../../src/cognitoAuthorizer/index')
 
-// const chai = require('chai')
-// const expect = chai.expect
-// const sinon = require('sinon')
-// const fake = sinon.fake
-// const Bottle = require('bottlejs')
+const chai = require('chai');
+const expect = chai.expect
+const sinon = require('sinon')
+const fake = sinon.fake
+const chaiAsPromised = require('chai-as-promised')
+chai.use(chaiAsPromised)
 
 
+describe("cognitoAuthorizer", function() {
+    let mockToken, mockMethodArn, parseTokenStub,
+    mockEvent, mockClaims
 
-// describe("cognitoAuthorizer", function() {
-//     let parseTokenStub, gpAllowStub, gpDenyStub, event, context
+    this.beforeEach(() => {
+        mockToken = "test_token"
+        mockMethodArn = "mock_method_arn"
+        mockClaims = {email: "test@email.com"}
+        parseTokenStub = fake.resolves(mockClaims)
+        mockEvent = {
+            queryStringParameters: {
+                Authorizer: mockToken
+            },
+            methodArn: mockMethodArn
+        }
+    })
 
-//     let token = "xglXdTuw0gTjJWT41CEEg2hNuVAiIEdQkTk.H-839dSn9BRYyxu5UZ7xYA"
+    describe("failedToAuthenticateUserError", function() {
+        it("Should return an error object", () => {
+            expect(failedToAuthenticateUserError().message).to.equal("FAILED_TO_AUTHENTICATE_USER")
+        })
+    })
 
-//     const mockClaims = {
-//         email: "test_email"
-//     }
+    describe("unAuthorizedError", function() {
+        it("Should return an error object", () => {
+            expect(unAuthorizedError().message).to.equal("UN_AUTHORIZED")
+        })
+    })
 
-//     const mockAllowPolicy = "mock_policy"
-//     const mockDenyPolicy = "mock_policy"
+    describe("invalidMethodArnError", function() {
+        it("Should return an error object", () => {
+            expect(invalidMethodArnError().message).to.equal("INVALID_METHOD_ARN")
+        })
+    })
 
+    describe("handlerSafe", function() {
+        it("Should reject if methodArn is invalid", async () => {
+            mockEvent.methodArn = null
+            try {
+                await handlerSafe(parseTokenStub, mockEvent)
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_METHOD_ARN")
+            }
+        })
+
+        it("Should reject if token is invalid", async () => {
+            mockEvent.queryStringParameters.Authorizer = null
+            try {
+                await handlerSafe(parseTokenStub, mockEvent)
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_TOKEN_PROVIDED")
+            }
+        })
+
+        it("Should reject if parsing token fails", async () => {
+            parseTokenStub = fake.rejects()
+            try {
+                await handlerSafe(parseTokenStub, mockEvent)
+            }catch(err) {
+                expect(err.message).to.equal("UN_AUTHORIZED")
+            }
+        })
+
+        it("Should reject if generating policy fails", async () => {
+            parseTokenStub = fake.resolves({email: null})
+            try {
+                await handlerSafe(parseTokenStub, mockEvent)
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_AUTHENTICATE_USER")
+            }
+        })
+
+        it("Should resolve to an allow policy if authorization succeed", async () => {
+            const policy = await handlerSafe(parseTokenStub, mockEvent)
+            expect(policy.policyDocument.Statement[0].Effect).to.equal("Allow")
+        })
+
+
+    })
     
-//     this.beforeEach(() => {
-
-//         Bottle.clear("click")
-//         bottle = Bottle.pop("click")
-
-//         bottle.service('generateAllow', function () {
-//             gpAllowStub = sinon.fake.returns(mockAllowPolicy)
-//             return gpAllowStub
-//         })
-
-//         bottle.service("generateDeny", function () {
-//             gpDenyStub = sinon.fake.returns(mockDenyPolicy)
-//             return gpDenyStub
-//         })
-
-//         bottle.service("utils.parseToken", function () {
-//             parseTokenStub = sinon.fake.resolves(mockClaims)
-//             return parseTokenStub
-//         })
-
-
-//         event = {
-//             queryStringParameters: {
-//                 Authorizer: token
-//             }
-//         }
-    
-//         context = {
-//             fail: fake.returns(null),
-//             succeed: fake.returns(null)
-//         }
-//     })
-
-//     this.afterAll(() => {
-//         Bottle.clear("click")
-//     })
-
-//     it("Should call context.fail if token is not valid or not provided", async () => {
-//         event.queryStringParameters.Authorizer = null
-//         await handler(event, context)
-//         expect(context.fail.calledOnce).to.be.true
-//         expect(context.fail.getCall(0).args[0]).to.equal("Unauthorized")
-//     })
-
-//     it("Should invoke ParseToken and pass the token", async () => {
-//         await handler(event, context)
-//         expect(parseTokenStub.calledOnce).to.be.true
-//     })
-
-//     it("Should invoke generateAllow and pass the correct parameters", async () => {
-//         await handler(event, context)
-//         expect(gpAllowStub.calledOnce).to.be.true
-//         expect(gpAllowStub.getCall(0).args[0]).to.equal("me")
-//         expect(gpAllowStub.getCall(0).args[1]).to.equal(event.methodArn)
-//         expect(gpAllowStub.getCall(0).args[2]).to.equal(mockClaims.email)
-//     })
-
-//     it("Should invoke context.succeed and pass allow policy", async () => {
-//         await handler(event, context)
-//         expect(context.succeed.calledOnce).to.be.true
-//         expect(context.succeed.getCall(0).args[0]).to.equal(mockAllowPolicy)
-//     })
-
-//     it("Should call context.fail if authentication fails", async () => {
- 
-//         bottle.service("utils.parseToken", function () {
-//             gpDenyStub = sinon.fake.rejects(mockClaims)
-//             return gpDenyStub
-//         })
-//         await handler(event, context)
-//         expect(context.fail.calledOnce).to.be.true
-//         expect(context.fail.getCall(0).args[0]).to.equal("Unauthorized")
-//     })
-// })
+})

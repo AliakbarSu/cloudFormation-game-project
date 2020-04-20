@@ -1,43 +1,39 @@
+let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 
-// Bootstraps the application
-require(process.env.DEV ? '../opt/nodejs/container' : '/opt/nodejs/container')
+const { curry, get } = require("lodash/fp")
+const mapError = require(layerPath + 'utils/error')
+const { authenticateUser } = require(layerPath + 'cognito.connector')
+const { isValidPassword, isValidUsername } = require(layerPath + 'utils/validators/index')
+const { invalidPasswordError, invalidUsernameError } = require(layerPath + 'utils/errors/general')
 
-const main = bottle => {
-    function _handler (cognitoConnector, mapError)  {
-        return async (event, context) => {
-    
-            const data = event;
-            const user = data.username;
-            const password = data.password;
-        
-            try {
-                const result = await cognitoConnector.authenticateUser(user, password)
-                const response = {
-                    token: result.tokenId,
-                    refresh: result.refreshToken,
-                    user
-                }
-                
-                return {
-                    statusCode: 200,
-                    headers: {
-                        'Content-Type': 'text/plain',
-                        'Access-Control-Allow-Origin': "*"
-                    },
-                    body: JSON.stringify(response)
-                }
-            }catch(err) {
-                console.log(err);
-                const mapedError = mapError(err, context)
-                return Promise.reject(mapedError)
-            }
+const handlerSafe = curry(async (authenticateUser, event, context) => {
+    const data = event
+    const username = get("username", data)
+    const password = get("password", data)
+
+    if(!isValidUsername(username))
+        return Promise.reject(invalidUsernameError())
+
+    if(!isValidPassword(password))
+        return Promise.reject(invalidPasswordError())
+
+
+    try {
+        const result = await authenticateUser(process.env.USER_POOL_ID, username, password)
+        return {
+            token: result.tokenId,
+            refresh: result.refreshToken,
+            username
         }
+    }catch(err) {
+        console.log(err)
+        const mapedError = mapError(err, context)
+        return Promise.reject(mapedError)
     }
+})
 
 
-    bottle.service("cognitoAuthenticator", _handler, "connector.cognito", "utils.mapError")
-    return bottle.container.cognitoAuthenticator
+module.exports = {
+    handlerSafe,
+    handler: handlerSafe(authenticateUser)
 }
-
-
-exports.handler = (...args) => main(require('bottlejs').pop("click"))(...args)

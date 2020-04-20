@@ -1,4 +1,14 @@
-const { get } = require("lodash/fp")
 
-let test = undefined
-console.log(test.test)
+
+const testFunc = async () => {
+    try {
+        return Promise.reject("from try block")
+    }catch(err) {
+        return Promise.reject("from catch block")
+    }
+}
+
+
+testFunc().catch(err => {
+    console.log(err)
+})
