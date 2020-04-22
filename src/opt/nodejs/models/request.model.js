@@ -10,7 +10,7 @@ const {
 } = require('../utils/validators/index')
 
 const uuid = require('uuid')
-const { getConnector } = require('../dynamodb.connector')
+const { getConnector } = require('../connectors/dynamodb.connector')
 const { invalidPidError } = require('../utils/errors/general')
 
 

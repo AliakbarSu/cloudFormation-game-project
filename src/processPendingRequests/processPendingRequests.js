@@ -9,7 +9,7 @@ const handlerSafe = curry(async (processRequest, event, context) => {
     const records = get("Records", event)
     const mapedRecords = records.map(record => getOr(null, "messageAttributes.requestId.stringValue", record))
     const filteredRecords = mapedRecords.filter(record => record)
-    console.log(filteredRecords)
+
     if(filteredRecords.length === 0)
         return Promise.resolve("NO_REQUEST_TO_PROCESS")
 

@@ -2,18 +2,23 @@ const {
     failedToAddRequestError,
     failedToConvertIdsToJsonError,
     failedToGetSendMessageMethodError,
-    failedToSqueduleNextQuestionError,
+    failedToScheduleNextQuestionError,
+    failedToScheduleResultError,
+    failedToSchedulePointsTransferError,
     invalidParamsError,
     invalidPlayerIdsError,
     invalidSendMethodError,
     constructQuestionObject,
     constructRequestObject,
+    constructPointsTransferObject,
     convertIdsToJson,
     sendMessage,
     addRequestSafe,
     scheduleNextQuestionSafe,
-    validatePlayerIds
-} = require('../../../src/opt/nodejs/sqs.connector')
+    scheduleResultSafe, 
+    validatePlayerIds,
+    schedulePointsTransferSafe
+} = require('../../../src/opt/nodejs/connectors/sqs.connector')
 
 
 const sinon = require('sinon')
@@ -28,7 +33,8 @@ chai.use(chaiAsPromised)
 describe("SQS Connector", function() {
     let mockDelaySeconds, mockRequestId, mockPlayerIds,
     mockGameId, mockMessageBody, mockQueueUrl, sendMessageStub,
-    sqsStub, stringifierStub, mockPlayerIdsJson, mockResponse
+    sqsStub, stringifierStub, mockPlayerIdsJson, mockResponse,
+    mockAmount, mockPlayerId, mockCode
 
     this.beforeEach(() => {
         mockDelaySeconds = 2
@@ -39,6 +45,9 @@ describe("SQS Connector", function() {
         mockMessageBody = "test_message_body"
         mockQueueUrl = "http://test@url.com"
         mockResponse = "test_response"
+        mockAmount = 10
+        mockCode = "to"
+        mockPlayerId = "test_player_id"
         stringifierStub = fake.returns(mockPlayerIdsJson)
         sendMessageStub = fake.yields(null, mockResponse)
         sqsStub = {
@@ -68,10 +77,24 @@ describe("SQS Connector", function() {
         })
     })
 
-    describe("failedToSqueduleNextQuestionError", function() {
+    describe("failedToSchedulePointsTransferError", function() {
         it("Should create a new error object", () => {
-            expect(failedToSqueduleNextQuestionError().message)
+            expect(failedToSchedulePointsTransferError().message)
+            .to.equal("FAILED_TO_SCHEDULE_POINTS_TRANSFER")
+        })
+    })
+
+    describe("failedToScheduleNextQuestionError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToScheduleNextQuestionError().message)
             .to.equal("FAILED_TO_SCHEDULE_NEXT_QUESTION")
+        })
+    })
+
+    describe("failedToScheduleResultError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToScheduleResultError().message)
+            .to.equal("FAILED_TO_SCHEDULE_RESULT")
         })
     })
 
@@ -128,6 +151,24 @@ describe("SQS Connector", function() {
                 mockQueueUrl)
             expect(obj.DelaySeconds).to.equal(mockDelaySeconds)
             expect(obj.MessageAttributes.gameId.StringValue).to.equal(mockGameId)
+            expect(obj.MessageBody).to.equal(mockMessageBody)
+            expect(obj.QueueUrl).to.equal(mockQueueUrl)
+        })
+    })
+
+    describe("constructPointsTransferObject", function() {
+        it("Should return a question object", () => {
+            const obj = constructPointsTransferObject(
+                mockDelaySeconds,
+                mockCode,
+                mockPlayerId,
+                mockAmount,
+                mockMessageBody,
+                mockQueueUrl)
+            expect(obj.DelaySeconds).to.equal(mockDelaySeconds)
+            expect(obj.MessageAttributes.playerId.StringValue).to.equal(mockPlayerId)
+            expect(obj.MessageAttributes.code.StringValue).to.equal(mockCode.toUpperCase())
+            expect(obj.MessageAttributes.amount.StringValue).to.equal(mockAmount)
             expect(obj.MessageBody).to.equal(mockMessageBody)
             expect(obj.QueueUrl).to.equal(mockQueueUrl)
         })
@@ -305,6 +346,126 @@ describe("SQS Connector", function() {
 
         it("Should resolve if message was sent", async () => {
             const result = await scheduleNextQuestionSafe(sqsStub, mockQueueUrl, mockGameId)
+            expect(result).to.equal(mockResponse)
+        })
+    })
+
+    describe("scheduleResultSafe", function() {
+        it("Should reject if queueUrl is invalid", async () => {
+            try {
+                await scheduleResultSafe(sqsStub, null, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_QUEUE_URL_PROVIDED")
+            }
+        })
+
+        it("Should reject if gameId is invalid", async () => {
+            try {
+                await scheduleResultSafe(sqsStub, mockQueueUrl, null)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_GAME_ID_PROVIDED")
+            }
+        })
+
+        it("Should reject if sendMessage is invalid", async () => {
+            sqsStub = {
+                sendMessage: null
+            }
+            try {
+                await scheduleResultSafe(sqsStub, mockQueueUrl, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_SEND_MESSAGE_METHOD")
+            }
+        })
+
+        it("Should reject if sendMessage fails", async () => {
+            sqsStub = {
+                sendMessage: fake.yields("error")
+            }
+            try {
+                await scheduleResultSafe(sqsStub, mockQueueUrl, mockGameId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_SCHEDULE_RESULT")
+            }
+        })
+
+        it("Should resolve if message was sent", async () => {
+            const result = await scheduleResultSafe(sqsStub, mockQueueUrl, mockGameId)
+            expect(result).to.equal(mockResponse)
+        })
+    })
+
+    describe("schedulePointsTransferSafe", function() {
+        it("Should reject if queueUrl is invalid", async () => {
+            mockQueueUrl = null
+            try {
+                await schedulePointsTransferSafe(sqsStub, mockQueueUrl, mockCode, mockPlayerId, mockAmount)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_QUEUE_URL_PROVIDED")
+            }
+        })
+
+        it("Should reject if code is invalid", async () => {
+            mockCode = null
+            try {
+                await schedulePointsTransferSafe(sqsStub, mockQueueUrl, mockCode, mockPlayerId, mockAmount)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_CODE_PROVIDED")
+            }
+        })
+
+        it("Should reject if playerId is invalid", async () => {
+            mockPlayerId = null
+            try {
+                await schedulePointsTransferSafe(sqsStub, mockQueueUrl, mockCode, mockPlayerId, mockAmount)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_PID_PROVIDED")
+            }
+        })
+
+        it("Should reject if amount is invalid", async () => {
+            mockAmount = null
+            try {
+                await schedulePointsTransferSafe(sqsStub, mockQueueUrl, mockCode, mockPlayerId, mockAmount)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_AMOUNT_PROVIDED")
+            }
+        })
+
+        it("Should reject if sendMessage is invalid", async () => {
+            sqsStub = {
+                sendMessage: null
+            }
+            try {
+                await schedulePointsTransferSafe(sqsStub, mockQueueUrl, mockCode, mockPlayerId, mockAmount)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_SEND_MESSAGE_METHOD")
+            }
+        })
+
+        it("Should reject if sendMessage fails", async () => {
+            sqsStub = {
+                sendMessage: fake.yields("error")
+            }
+            try {
+                await schedulePointsTransferSafe(sqsStub, mockQueueUrl, mockCode, mockPlayerId, mockAmount)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_SCHEDULE_POINTS_TRANSFER")
+            }
+        })
+
+        it("Should resolve if message was sent", async () => {
+            const result = await schedulePointsTransferSafe(sqsStub, mockQueueUrl, mockCode, mockPlayerId, mockAmount)
             expect(result).to.equal(mockResponse)
         })
     })

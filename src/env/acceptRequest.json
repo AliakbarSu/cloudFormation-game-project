@@ -1,8 +1,0 @@
-{
-    "Variables": {
-        "DYNAMODB_REQUESTS_TABLE": "requests",
-        "KEYS_URL": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_5i9hLQyTN/.well-known/jwks.json",
-        "COGNITO_USER_POOL": "gdvig07kj34c7lttk57ccgebc",
-        "DYNAMODB_REQUESTS_TABLE_REGION": "us-east-2"
-    }
-}

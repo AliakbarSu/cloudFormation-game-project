@@ -3,10 +3,10 @@ const { curry, get } = require('lodash/fp')
 
 const {
     isValidConnectionId
-} = require('./utils/validators/index')
+} = require('../utils/validators/index')
 const {
     invalidConnectionIdError
-} = require('./utils/errors/general')
+} = require('../utils/errors/general')
 const aws = require('aws-sdk')
 
 

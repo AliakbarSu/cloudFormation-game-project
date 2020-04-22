@@ -1,5 +1,5 @@
 const { curry, get } = require('lodash/fp')
-const { getConnection } = require('../mongodb.connector')
+const { getConnection } = require('../connectors/mongodb.connector')
 const mongoose = require('mongoose')
 const {
     isValidPid,
@@ -41,6 +41,7 @@ const failedToUpdatePlayerLocationError = () => new Error("FAILED_TO_UPDATE_PLAY
 const failedToRegisterConnectionIdError = () => new Error("FAILED_TO_REGISTER_CONNECTION_ID")
 const failedToDeregisterConnectionIdError = () => new Error("FAILED_TO_DEREGISTER_CONNECTION_ID")
 const failedToSearchForPlayersError = () => new Error("FAILED_TO_SEARCH_FOR_PLAYERS")
+const failedToFindUserByConIdError = () => new Error("FAILED_TO_FIND_USER_BY_CONNECTION_ID")
 
 
 const convertIdToObjectId = curry((converter, id) => {
@@ -111,6 +112,27 @@ const findUserByEmailSafe = curry(async (connection, email) => {
     }catch(err) {
         console.log(err)
         return Promise.reject(failedToFindUserByEmailError())
+    }
+})
+
+const findUserByConIdSafe = curry(async (connection, connectionId) => {
+    try {
+        if(!isValidConnectionId(connectionId))
+        return Promise.reject(invalidConnectionIdError())
+        
+        let model = get("model", connection)
+        if(!model)
+            return Promise.reject(invalidModelError())
+
+        model = model()
+        
+        return model.findOne({connectionId}).catch(err => {
+            console.log(err)
+            return Promise.reject(failedToFindUserByConIdError())
+        })
+    }catch(err) {
+        console.log(err)
+        return Promise.reject(failedToFindUserByConIdError())
     }
 })
 
@@ -365,27 +387,29 @@ module.exports = {
     failedToRegisterConnectionIdError,
     failedToDeregisterConnectionIdError,
     failedToSearchForPlayersError,
+    failedToFindUserByConIdError,
     convertIdsToObjectIds,
     convertIdToObjectId,
     createPlayerSafe,
     findUserByEmailSafe,
     findUserByIdSafe,
+    findUserByConIdSafe,
     getPlayersConIdsSafe,
     markPlayersAsPlayingSafe,
     updatePlayersLocationSafe,
     registerConnectionIdSafe,
     deregisterConnectionIdSafe,
     searchForPlayersSafe,
-    createPlayer: currentCon => createPlayerSafe(getConnection(currentCon)),
-    findUserByEmail: currentCon => findUserByEmailSafe(getConnection(currentCon)),
-    findUserById: currentCon => findUserByIdSafe(getConnection(currentCon), mongoose.Types.ObjectId),
-    getPlayersConIds: currentCon => getPlayersConIdsSafe(getConnection(currentCon), mongoose.Types.ObjectId),
-    markPlayersAsPlaying: currentCon => markPlayersAsPlayingSafe(getConnection(currentCon), mongoose.Types.ObjectId),
-    updatePlayersLocation: currentCon => 
-        updatePlayersLocationSafe(getConnection(currentCon)),
-    registerConnectionId: currentCon => registerConnectionIdSafe(getConnection(currentCon)),
-    deregisterConnectionId: currentCon => deregisterConnectionIdSafe(getConnection(currentCon)),
-    searchForPlayers: currentCon => searchForPlayersSafe(getConnection(currentCon), mongoose.Types.ObjectId)
+    createPlayer: createPlayerSafe(getConnection()),
+    findUserByEmail: findUserByEmailSafe(getConnection()),
+    findUserById: findUserByIdSafe(getConnection(), mongoose.Types.ObjectId),
+    findUserByConId: findUserByConIdSafe(getConnection()),
+    getPlayersConIds: getPlayersConIdsSafe(getConnection(), mongoose.Types.ObjectId),
+    markPlayersAsPlaying: markPlayersAsPlayingSafe(getConnection(), mongoose.Types.ObjectId),
+    updatePlayersLocation:  updatePlayersLocationSafe(getConnection()),
+    registerConnectionId: registerConnectionIdSafe(getConnection()),
+    deregisterConnectionId: deregisterConnectionIdSafe(getConnection()),
+    searchForPlayers: searchForPlayersSafe(getConnection(), mongoose.Types.ObjectId)
 }
 
 

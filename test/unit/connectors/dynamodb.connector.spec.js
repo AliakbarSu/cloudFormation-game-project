@@ -1,4 +1,4 @@
-const { dynamodbConnector } = require('../../../src/opt/nodejs/dynamodb.connector')
+const { dynamodbConnector } = require('../../../src/opt/nodejs/connectors/dynamodb.connector')
 const chai = require('chai')
 const expect = chai.expect
 const sinon = require("sinon")

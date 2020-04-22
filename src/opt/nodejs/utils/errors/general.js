@@ -9,6 +9,7 @@ const invalidPidError = () => new Error("INVALID_PID_PROVIDED")
 const invalidSubError = () => new Error("INVALID_SUB_PROVIDED")
 const invalidTableNameError = () => new Error("INVALID_TABLE_NAME_PROVIDED")
 const invalidRequestIdError = () => new Error("INVALID_REQUEST_ID_PROVIDED")
+const invalidKeyIdError = () => new Error("INVALID_KEY_ID_PROVIDED")
 const invalidGameIdError = () => new Error("INVALID_GAME_ID_PROVIDED")
 const invalidQuestionIdError = () => new Error("INVALID_QUESTION_ID_PROVIDED")
 const invalidUsernameError = () => new Error("INVALID_USERNAME_PROVIDED")
@@ -25,8 +26,17 @@ const invalidLevelError = () => new Error("INVALID_LEVEL_PROVIDED")
 const invalidNumberError = () => new Error("INVALID_NUMBER_PROVIDED")
 const invalidPrincipleIdError = () => new Error("INVALID_PRINCIPLE_ID_PROVIDED")
 const invalidResourceError = () => new Error("INVALID_RESOURCE_PROVIDED")
+const invalidAnswerIdsError = () => new Error("ANSWER_IDS_ARRAY_CONTAINS_INVALID_ID")
+const invalidAnswerIdError = () => new Error("INVALID_ANSWER_IDS_PROVIDED")
+const invalidCodeError = () => new Error("INVALID_CODE_PROVIDED")
+const invalidAmountError = () => new Error("INVALID_AMOUNT_PROVIDED")
  
 module.exports = {
+    invalidAmountError,
+    invalidAnswerIdError,
+    invalidAnswerIdsError,
+    invalidKeyIdError,
+    invalidCodeError,
     invalidPrincipleIdError, 
     invalidResourceError,
     invalidNumberError,

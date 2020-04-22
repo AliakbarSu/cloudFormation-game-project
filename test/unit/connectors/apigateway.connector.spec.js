@@ -8,7 +8,7 @@ const {
     failedToGetPostToConnectionMethodError,
     failedToPostToConnectionError,
     constructPostData
- } = require('../../../src/opt/nodejs/apigateway.connector')
+ } = require('../../../src/opt/nodejs/connectors/apigateway.connector')
 
 const sinon = require('sinon')
 var chai = require('chai');

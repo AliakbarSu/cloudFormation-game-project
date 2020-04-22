@@ -9,7 +9,7 @@ const {
 } = require('../utils/validators/index')
 
 const uuid = require('uuid')
-const { getConnector } = require('../dynamodb.connector')
+const { getConnector } = require('../connectors/dynamodb.connector')
 const { invalidTableNameError } = require('../utils/errors/general')
 
 const invalidFiltersDataError = () => new Error("INVALID_FILTERS_PROVIDED")

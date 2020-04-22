@@ -4,21 +4,28 @@ const {
   isValidRequestId,
   isValidPid,
   isValidQueueUrl,
-  isValidGameId
-} = require("./utils/validators/index")
+  isValidGameId,
+  isValidCode,
+  isValidAmount
+} = require("../utils/validators/index")
 const {
   invalidQueueUrlError,
   invalidGameIdError,
-  invalidRequestIdError
-} = require('./utils/errors/general')
+  invalidRequestIdError,
+  invalidPidError,
+  invalidCodeError,
+  invalidAmountError
+} = require('../utils/errors/general')
 
 const invalidSendMethodError = () => new Error("INVALID_SEND_METHOD")
 const invalidParamsError = () => new Error("INVALID_PARAMS_ERROR")
 const invalidPlayerIdsError = () => new Error("PLAYER_IDS_ARRAY_CONTAINS_INVALID_ID")
 const failedToAddRequestError = () => new Error("FAILED_TO_ADD_REQUEST")
-const failedToSqueduleNextQuestionError = () => new Error("FAILED_TO_SCHEDULE_NEXT_QUESTION")
+const failedToScheduleNextQuestionError = () => new Error("FAILED_TO_SCHEDULE_NEXT_QUESTION")
 const failedToGetSendMessageMethodError = () => new Error("FAILED_TO_GET_SEND_MESSAGE_METHOD")
 const failedToConvertIdsToJsonError = () => new Error("FAILED_TO_CONVERT_IDS_TO_JSON")
+const failedToScheduleResultError = () => new Error("FAILED_TO_SCHEDULE_RESULT")
+const failedToSchedulePointsTransferError = () => new Error("FAILED_TO_SCHEDULE_POINTS_TRANSFER")
 
 
 const constructQuestionObject = curry((DelaySeconds, gameId, MessageBody, QueueUrl) => {
@@ -46,6 +53,28 @@ const constructRequestObject = curry((DelaySeconds, requestId, playerIds, Messag
       "playerIds": {
         DataType: "String",
         StringValue: playerIds
+      }
+    },
+    MessageBody,
+    QueueUrl
+  }
+})
+
+const constructPointsTransferObject = curry((DelaySeconds, code, playerId, amount, MessageBody, QueueUrl) => {
+  return {
+    DelaySeconds,
+    MessageAttributes: {
+      "playerId": {
+        DataType: "String",
+        StringValue: playerId
+      },
+      "code": {
+        DataType: "String",
+        StringValue: code.toUpperCase()
+      },
+      "amount": {
+        DataType: "String",
+        StringValue: amount
       }
     },
     MessageBody,
@@ -114,7 +143,6 @@ const addRequestSafe = curry(async (sqs, stringifier, queueUrl, requestId, playe
 })
 
 const scheduleNextQuestionSafe = curry(async (sqs, queueUrl, gameId) => {
-
   if(!isValidQueueUrl(queueUrl))
     return Promise.reject(invalidQueueUrlError())
 
@@ -130,7 +158,55 @@ const scheduleNextQuestionSafe = curry(async (sqs, queueUrl, gameId) => {
 
   return sendMessage(send, params).catch(err => {
     console.log(err)
-    return Promise.reject(failedToSqueduleNextQuestionError())
+    return Promise.reject(failedToScheduleNextQuestionError())
+  })
+})
+
+const schedulePointsTransferSafe = curry(async (sqs, queueUrl, code, playerId, amount) => {
+  if(!isValidQueueUrl(queueUrl))
+    return Promise.reject(invalidQueueUrlError())
+
+  if(!isValidCode(code))
+    return Promise.reject(invalidCodeError())
+
+  if(!isValidPid(playerId))
+    return Promise.reject(invalidPidError())
+
+  if(!isValidAmount(amount))
+    return Promise.reject(invalidAmountError())
+
+  const send = get("sendMessage", sqs)
+
+  if(!send)
+    return Promise.reject(failedToGetSendMessageMethodError())
+
+  const params = constructPointsTransferObject(10, code, playerId, amount, "Points to transfer", queueUrl)
+
+  return sendMessage(send, params).catch(err => {
+    console.log(err)
+    return Promise.reject(failedToSchedulePointsTransferError())
+  })
+})
+
+
+const scheduleResultSafe = curry(async (sqs, queueUrl, gameId) => {
+
+  if(!isValidQueueUrl(queueUrl))
+    return Promise.reject(invalidQueueUrlError())
+
+  if(!isValidGameId(gameId))
+    return Promise.reject(invalidGameIdError())
+
+  const send = get("sendMessage", sqs)
+
+  if(!send)
+    return Promise.reject(failedToGetSendMessageMethodError())
+
+  const params = constructQuestionObject(10, gameId, "Result need to be calculated", queueUrl)
+
+  return sendMessage(send, params).catch(err => {
+    console.log(err)
+    return Promise.reject(failedToScheduleResultError())
   })
 })
 
@@ -140,19 +216,26 @@ module.exports = {
   failedToConvertIdsToJsonError,
   failedToAddRequestError,
   failedToGetSendMessageMethodError,
-  failedToSqueduleNextQuestionError,
+  failedToScheduleNextQuestionError,
+  failedToScheduleResultError,
+  failedToSchedulePointsTransferError,
   invalidSendMethodError,
   invalidPlayerIdsError,
   invalidParamsError,
   constructQuestionObject,
   constructRequestObject,
+  constructPointsTransferObject,
   convertIdsToJson,
   sendMessage,
   addRequestSafe,
   scheduleNextQuestionSafe,
+  schedulePointsTransferSafe,
+  scheduleResultSafe,
   validatePlayerIds,
   addRequestSqs: addRequestSafe(new aws.SQS({apiVersion: '2012-11-05'}), JSON.stringify),
-  scheduleNextQuestion: scheduleNextQuestionSafe(new aws.SQS({apiVersion: '2012-11-05'}))
+  scheduleNextQuestion: scheduleNextQuestionSafe(new aws.SQS({apiVersion: '2012-11-05'})),
+  scheduleResult: scheduleResultSafe(new aws.SQS({apiVersion: '2012-11-05'})),
+  schedulePointsTransfer: schedulePointsTransferSafe(new aws.SQS({apiVersion: '2012-11-05'}))
 }
 
 

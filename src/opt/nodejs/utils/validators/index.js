@@ -13,6 +13,8 @@ const isValidPid = aud => aud && aud.length > 0
 
 const isValidGameId = gid => gid && gid.length > 0
 
+const isValidAnswerId = gid => gid && gid.length > 0
+
 const isValidConnectionId = aud => aud && aud.length > 0
 
 const isValidLevel = level => level && !isNaN(level)
@@ -26,6 +28,8 @@ const isValidTableName = tableName => tableName && tableName.length > 0
 const isValidLanguage = aud => aud && aud.length > 0
 
 const isValidRequestId = id => id && id.length > 0
+
+const isValidKeyId = kid => kid && kid.length > 0
 
 const isValidQuestionId = qid => qid && qid.length > 0
 
@@ -45,6 +49,10 @@ const isValidUserPool = pool => pool !== null && pool.length > 0
 
 const isValidNumber = int => int !== null && typeof int === "number"
 
+const isValidAmount = amount => amount !== null && typeof amount === "number"
+
+const isValidCode = code => code !== null && typeof code === "string"
+
 const isUrlValid = curry((regex, url) => {
     return url && url.match(regex)
 })
@@ -62,6 +70,13 @@ const isValidPlayerIds = ids => {
     return invalidIds.length == 0
 }
 
+const isValidAnswerIds = ids => {
+    if(!ids)
+      return false
+    const invalidIds = ids.filter(id => !isValidAnswerId(id))
+    return invalidIds.length == 0
+}
+
 const _isValidEmail = curry((regex, email) => {
     return email && email.match(regex)
 })
@@ -69,6 +84,11 @@ const _isValidEmail = curry((regex, email) => {
 
 
 module.exports = {
+    isValidAmount,
+    isValidAnswerId,
+    isValidCode,
+    isValidAnswerIds,
+    isValidKeyId,
     isValidPrincipleId,
     isValidResource,
     isValidNumber,

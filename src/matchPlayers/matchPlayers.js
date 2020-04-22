@@ -25,8 +25,8 @@ const {
 
 const { searchForPlayers, markPlayersAsPlaying } = require(layerPath + 'models/players.model')
 const { addRequest } = require(layerPath + 'models/request.model')
-const { broadcastMessages } = require(layerPath + 'apigateway.connector')
-const { addRequestSqs } = require(layerPath + 'sqs.connector')
+const { broadcastMessages } = require(layerPath + 'connectors/apigateway.connector')
+const { addRequestSqs } = require(layerPath + 'connectors/sqs.connector')
 
 
 const invalidCoordinatesError = () => new Error("USER_DATA_CONTAINS_INVALID_COORDINATES")

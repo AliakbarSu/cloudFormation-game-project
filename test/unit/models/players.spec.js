@@ -11,6 +11,8 @@ const {
     failedToRegisterConnectionIdError,
     failedToSearchForPlayersError,
     failedToUpdatePlayerLocationError,
+    failedToFindUserByConIdError,
+    findUserByConIdSafe,
     findUserByEmailSafe,
     findUserByIdSafe,
     createPlayerSafe,
@@ -137,6 +139,12 @@ describe('Players Model', function() {
     describe("failedToGetPlayersConIdsError", function() {
         it("Should create a new error object", () => {
             expect(failedToGetPlayersConIdsError().message).to.equal("FAILED_TO_GET_PLAYERS_CONN_IDS")
+        })
+    })
+
+    describe("failedToFindUserByConIdError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToFindUserByConIdError().message).to.equal("FAILED_TO_FIND_USER_BY_CONNECTION_ID")
         })
     })
 
@@ -314,6 +322,62 @@ describe('Players Model', function() {
             expect(result).to.deep.equal(mockResponse)
             expect(findOneStub.calledOnce).to.be.true
             expect(findOneStub.getCall(0).args[0].email).to.equal(mockEmail)
+        })
+    })
+
+
+    describe("findUserByConIdSafe", function() {
+
+        it("Should reject if connection id is invalid", async () => {
+            try {
+                await findUserByConIdSafe(connectionStub, "")
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidConnectionIdError().message)
+            }
+        })
+
+        it("Should reject if model is invalid", async () => {
+            connectionStub = {
+                model: null
+            }
+            try {
+                await findUserByConIdSafe(connectionStub, mockConnectionId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidModelError().message)
+            }
+        })
+
+        it("Should reject if calling model throws error", async () => {
+            connectionStub = {
+                model: fake.throws()
+            }
+            try {
+                await findUserByConIdSafe(connectionStub, mockConnectionId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(failedToFindUserByConIdError().message)
+            }
+        })
+
+        it("Should reject if finding user by connection id fails", async () => {
+            connectionStub = {
+                model: fake.returns({findOne: fake.rejects()})
+            }
+            try {
+                await findUserByConIdSafe(connectionStub, mockConnectionId)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(failedToFindUserByConIdError().message)
+            }
+        })
+
+        it("Should resolve if model.findOne succeed", async () => {
+            const result = await findUserByConIdSafe(connectionStub, mockConnectionId)
+            expect(result).to.deep.equal(mockResponse)
+            expect(findOneStub.calledOnce).to.be.true
+            expect(findOneStub.getCall(0).args[0].connectionId).to.equal(mockConnectionId)
         })
     })
 

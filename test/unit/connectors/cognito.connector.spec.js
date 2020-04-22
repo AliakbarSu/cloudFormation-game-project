@@ -23,7 +23,7 @@ const {
     extractTokenMethods,
     authenticateUserSafe,
     authenticate
-} = require('../../../src/opt/nodejs/cognito.connector')
+} = require('../../../src/opt/nodejs/connectors/cognito.connector')
 
 const sinon = require('sinon')
 var chai = require('chai');

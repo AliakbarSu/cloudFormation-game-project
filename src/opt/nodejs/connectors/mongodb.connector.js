@@ -31,6 +31,7 @@ const createConnection = curry(async (createConnection, URI, connectionObject) =
     }
 })
 
+let currentConnection = null
 
 
 const getConnectionSafe = curry((currentConnection, createConn, bufferCommands, bufferMaxEntries, URI) => {
@@ -67,5 +68,10 @@ module.exports = {
     createConnectionObject,
     createConnection,
     getConnectionSafe,
-    getConnection: currentCon => getConnectionSafe(currentCon, mongoose.createConnection)
+    getConnection: () => {
+        if(currentConnection == null) {
+            currentConnection = getConnectionSafe(currentConnection, mongoose.createConnection)
+        }
+        return getConnectionSafe(getConnectionSafe(currentConnection, mongoose.createConnection))
+    }
 }

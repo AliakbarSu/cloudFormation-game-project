@@ -1,9 +1,9 @@
 let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 
 const { curry, get } = require("lodash/fp")
-const { broadcastMessages } = require(layerPath + 'apigateway.connector')
+const { broadcastMessages } = require(layerPath + 'connectors/apigateway.connector')
 const { getPlayersConIds } = require(layerPath + 'models/players.model')
-const { scheduleNextQuestion } = require(layerPath + 'sqs.connector')
+const { scheduleNextQuestion } = require(layerPath + 'connectors/sqs.connector')
 const { markQuestionAsFetched } = require(layerPath + 'models/game.model')
 
 

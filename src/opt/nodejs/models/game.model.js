@@ -1,5 +1,5 @@
 const { curry, get } = require('lodash/fp')
-const { getConnector } = require('../dynamodb.connector')
+const { getConnector } = require('../connectors/dynamodb.connector')
 const { generateQuize } = require('./questions.model')
 const uuid = require('uuid')
 const {
@@ -11,14 +11,20 @@ const {
     isValidCategory,
     isValidLanguage,
     isValidLevel,
-    isValidLimit
+    isValidLimit,
+    isValidPid,
+    isValidAnswerId,
+    isValidAnswerIds
 } = require('../utils/validators/index')
 const {
     invalidTableNameError,
     invalidQuestionIdError,
     invalidGameIdError,
     invalidRequestIdError,
-    invalidPlayerIdsError
+    invalidPlayerIdsError,
+    invalidPidError,
+    invalidAnswerIdError,
+    invalidAnswerIdsError
 } = require('../utils/errors/general')
 
 
@@ -31,6 +37,7 @@ const failedToGetQuestionsError = () => new Error("FAILED_TO_GET_QUESTIONS")
 const failedToGetCurrentTimeError = () => new Error("FAILED_TO_GET_CURRENT_TIME")
 const failedToGenerateIdError = () => new Error("FAILED_TO_GENERATE_ID")
 const failedToCreateGameError = () => new Error("FAILED_TO_CREATE_GAME")
+const failedToSubmitAnswersError = () => new Error("FAILED_TO_SUBMIT_ANSWERS")
 const invalidFiltersDataError = () => new Error("INVALID_FILTERS_PROVIDED")
 
 
@@ -138,7 +145,7 @@ const constructCreateGameObject = curry((tableName, id, requestId, playerIds, qu
 const createGameSafe = curry(async (connector, generateQuize, getTime, generateId, tableName, requestId, playerIds, gameFilters) => {
     try {
         if(!isValidTableName(tableName))
-        return Promise.reject(invalidTableNameError())
+            return Promise.reject(invalidTableNameError())
 
         if(!isValidRequestId(requestId))
             return Promise.reject(invalidRequestIdError())
@@ -182,6 +189,65 @@ const createGameSafe = curry(async (connector, generateQuize, getTime, generateI
 })
 
 
+const constructSubmitAnswersObject = curry((tableName, gameId, playerId, questionId, answerIds, currentTime) => ({
+    TableName: tableName,
+    Key: {
+        "_id": gameId
+    },
+    UpdateExpression: "set questions.#questionId.submitted_answers = :submittedAnswers",
+    ExpressionAttributeNames: {
+        '#questionId': questionId
+    },
+    ExpressionAttributeValues: {
+        ":submittedAnswers": {[playerId]: {answers: answerIds, submittedAt: currentTime}}
+    }
+}))
+
+
+const submitAnswersSafe = curry(async (connector, getTime, tableName, gameId, playerId, questionId, answerIds) => {
+    if(!isValidTableName(tableName))
+        return Promise.reject(invalidTableNameError())
+
+    if(!isValidGameId(gameId))
+        return Promise.reject(invalidGameIdError())
+
+    if(!isValidPid(playerId))
+        return Promise.reject(invalidPidError())
+    
+    if(!isValidQuestionId(questionId))
+        return Promise.reject(invalidQuestionIdError())
+
+    if(answerIds && answerIds.length === 0)
+        return Promise.reject(invalidAnswerIdError())
+
+    if(!isValidAnswerIds(answerIds))
+        return Promise.reject(invalidAnswerIdsError())
+
+    const update = get("update", connector)
+
+    if(!update)
+        return Promise.reject(failedToGetUpdateMethodError())
+
+
+    try {
+        const currentTime = getTime()
+        if(!currentTime)
+            return Promise.reject(failedToGetCurrentTimeError())
+
+        const params = constructSubmitAnswersObject(
+            tableName, gameId, playerId, questionId, answerIds, currentTime
+        )
+        await update(params).promise()
+            
+    }catch(err) {
+        console.log(err)
+        return Promise.reject(failedToSubmitAnswersError())
+    }
+
+    
+})
+
+
 
 
 
@@ -195,6 +261,7 @@ module.exports = {
     failedToGetCurrentTimeError,
     failedToGenerateIdError,
     failedToCreateGameError,
+    failedToSubmitAnswersError,
     invalidFiltersDataError,
     markQuestionAsFetchedSafe,
     getPendingGameSafe,
@@ -203,7 +270,10 @@ module.exports = {
     constructCreateGameObject,
     constructGetPendingGameObject,
     constructMarkQuestionAsFetchedObject,
+    constructSubmitAnswersObject,
     convertQuestionsArrayToObjectForm,
+    submitAnswersSafe,
+    submitAnswer: markQuestionAsFetchedSafe(getConnector(), new Date().getTime),
     markQuestionAsFetched: markQuestionAsFetchedSafe(getConnector()),
     getPendingGame: getPendingGameSafe(getConnector()),
     createGame: createGameSafe(getConnector(), generateQuize, new Date().getTime, uuid.v4)

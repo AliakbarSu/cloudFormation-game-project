@@ -8,7 +8,7 @@ const {
     createConnection,
     createConnectionObject,
     getConnectionSafe
-} = require("../../../src/opt/nodejs/mongodb.connector")
+} = require("../../../src/opt/nodejs/connectors/mongodb.connector")
 
 const sinon = require('sinon')
 var chai = require('chai');

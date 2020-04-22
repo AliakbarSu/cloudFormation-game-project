@@ -2,7 +2,7 @@ let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 
 const { curry, get } = require("lodash/fp")
 const mapError = require(layerPath + 'utils/error')
-const { authenticateUser } = require(layerPath + 'cognito.connector')
+const { authenticateUser } = require(layerPath + 'connectors/cognito.connector')
 const { isValidPassword, isValidUsername } = require(layerPath + 'utils/validators/index')
 const { invalidPasswordError, invalidUsernameError } = require(layerPath + 'utils/errors/general')
 

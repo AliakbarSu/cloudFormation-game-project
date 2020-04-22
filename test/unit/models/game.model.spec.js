@@ -8,15 +8,18 @@ const {
     failedToGetQuestionsError,
     failedToGetUpdateMethodError,
     failedToMarkQuestionAsFetchedError,
+    failedToSubmitAnswersError,
     constructCreateGameObject,
     constructGetPendingGameObject,
     constructMarkQuestionAsFetchedObject,
     convertQuestionsArrayToObjectForm,
+    constructSubmitAnswersObject,
     getPendingGameSafe,
     createGameSafe,
     markQuestionAsFetchedSafe,
     validateFilters,
-    invalidFiltersDataError
+    invalidFiltersDataError,
+    submitAnswersSafe
 } = require('../../../src/opt/nodejs/models/game.model')
 
 const sinon = require('sinon')
@@ -31,7 +34,8 @@ describe("GameModel", function() {
     let filters, mockTableName, mockGameId, mockQuestionId,
     mockPlayerIds, mockQuestions, mockCurrentTime,
     getTimeStub, connectorStub, generateQuizeStub, mockId,
-    mockRequestId, generateIdStub, mockResponse, mockGameFilters
+    mockRequestId, generateIdStub, mockResponse, mockGameFilters,
+    mockPlayerId, mockAnswerIds
 
     this.beforeEach(() => {
         filters = {
@@ -48,6 +52,8 @@ describe("GameModel", function() {
         mockRequestId = "test_response"
         mockPlayerIds = ["id1", "id2"]
         mockQuestions = [{_id: "id1", title: "test1"}, {_id: "id2", title: "test2"}]
+        mockPlayerId = "test_player",
+        mockAnswerIds = ["answer1", "answer2"]
         mockCurrentTime = 12344
         getTimeStub = fake.returns(mockCurrentTime)
         generateIdStub = fake.returns(mockId)
@@ -117,6 +123,12 @@ describe("GameModel", function() {
     describe("failedToMarkQuestionAsFetchedError", function() {
         it("Should create a new error object", () => {
             expect(failedToMarkQuestionAsFetchedError().message).to.equal("FAILED_TO_MARK_QUESTION_AS_FETCHED")
+        })
+    })
+
+    describe("failedToSubmitAnswersError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToSubmitAnswersError().message).to.equal("FAILED_TO_SUBMIT_ANSWERS")
         })
     })
 
@@ -481,9 +493,229 @@ describe("GameModel", function() {
             expect(result).to.equal(mockResponse)
             
         })
+    })
 
+    describe("submitAnswer", function() {
 
+        it("Should handle invalid tableName", async () => {
+            mockGameId = null
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_GAME_ID_PROVIDED")
+            }
+        })
 
+        it("Should handle invalid game id", async () => {
+            mockGameId = null
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_GAME_ID_PROVIDED")
+            }
+        })
+
+        it("Should handle invalid player id", async () => {
+            mockPlayerId = null
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_PID_PROVIDED")
+            }
+        })
+
+        it("Should handle invalid question id", async () => {
+            mockQuestionId = null
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_QUESTION_ID_PROVIDED")
+            }
+        })
+
+        it("Should handle empty answer ids array", async () => {
+            mockAnswerIds = []
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("INVALID_ANSWER_IDS_PROVIDED")
+            }
+        })
+
+        it("Should handle invalid id in answer ids array", async () => {
+            mockAnswerIds = [null, ""]
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("ANSWER_IDS_ARRAY_CONTAINS_INVALID_ID")
+            }
+        })
+
+        it("Should handler error gracefully if invalid connector is passed", async () => {
+            connectorStub.update = null
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_UPDATE_METHOD")
+            }
+        })
+
+        it("Should handler error gracefully if invalid time method", async () => {
+            getTimeStub = fake.returns(null)
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_GET_CURRENT_TIME")
+            }
+        })
+
+        it("Should handler network error gracefully", async () => {
+            connectorStub.update = fake.returns({promise: fake.rejects()})
+            try {
+                await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+                )
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal("FAILED_TO_SUBMIT_ANSWERS")
+            }
+        })
+
+        it("Should return a response after submitting the answers", async () => {
+            const result = await submitAnswersSafe(
+                    connectorStub,
+                    getTimeStub,
+                    mockTableName,
+                    mockGameId,
+                    mockPlayerId,
+                    mockQuestionId,
+                    mockAnswerIds
+            )
+            expect(result).to.equal(mockResponse)
+        })
+    })
+
+    describe("constructSubmitAnswersObeject", function() {
+        it("Should update the correct game", () => {
+            const result = constructSubmitAnswersObject(
+                mockTableName,
+                mockGameId, 
+                mockPlayerId, 
+                mockQuestionId, 
+                mockAnswerIds,
+                mockCurrentTime
+            )
+            expect(result.TableName).to.equal(mockTableName)
+            expect(result.Key._id).to.equal(mockGameId)
+        })
+
+        it("Should update the correct question", () => {
+            const result = constructSubmitAnswersObject(
+                mockTableName,
+                mockGameId, 
+                mockPlayerId, 
+                mockQuestionId, 
+                mockAnswerIds,
+                mockCurrentTime
+            )
+            expect(result.TableName).to.equal(mockTableName)
+            expect(result.ExpressionAttributeNames["#questionId"])
+            .to.equal(mockQuestionId)
+        })
+
+        it("Should submit answer for the correct player", () => {
+            const result = constructSubmitAnswersObject(
+                mockTableName,
+                mockGameId, 
+                mockPlayerId, 
+                mockQuestionId, 
+                mockAnswerIds,
+                mockCurrentTime
+            )
+            expect(result.TableName).to.equal(mockTableName)
+            expect(result.ExpressionAttributeValues[":submittedAnswers"][mockPlayerId])
+            .to.not.be.undefined
+            expect(result.ExpressionAttributeValues[":submittedAnswers"][mockPlayerId])
+            .to.not.be.null
+        })
     })
 
 

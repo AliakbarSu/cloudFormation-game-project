@@ -6,12 +6,12 @@ const {
     isValidPassword,
     isValidUserPool,
     isValidToken
-} = require('./utils/validators/index')
+} = require('../utils/validators/index')
 const { 
     invalidTokenError,
     invalidPasswordError, 
     invalidUserPoolError,
-    invalidUsernameError } = require('./utils/errors/general')
+    invalidUsernameError } = require('../utils/errors/general')
 
 
 const failedToAuthenticateUserError = () => new Error("FAILED_TO_AUTHENTICATE_USER")
