@@ -74,7 +74,7 @@ describe("Process Request", function() {
         })
     })
 
-    describe("", function() {
+    describe("processRequest", function() {
         it("Should return an object", () => {
             const result = constructGameParamsObject(
                 mockSubject, mockLevel, mockLanguage, mockLimit)

@@ -35,6 +35,8 @@ const isValidQuestionId = qid => qid && qid.length > 0
 
 const isValidUsername = username => username !== null && username.length > 0
 
+const isValidSignUpUsername = username => username !== null && username.length > 0
+
 const isValidPassword = pass => pass !== null && pass.length > 0
 
 const isValidPrincipleId = pid => pid !== null && pid.length > 0
@@ -46,6 +48,8 @@ const isValidLatitude = lat => lat !== null && typeof lat === "number" && lat > 
 const isValidLongitude = long => long !== null && typeof long === "number" && long > 0
 
 const isValidUserPool = pool => pool !== null && pool.length > 0
+
+const isValidClientId = cid => cid !== null && cid.length > 0
 
 const isValidNumber = int => int !== null && typeof int === "number"
 
@@ -84,6 +88,8 @@ const _isValidEmail = curry((regex, email) => {
 
 
 module.exports = {
+    isValidClientId,
+    isValidSignUpUsername,
     isValidAmount,
     isValidAnswerId,
     isValidCode,

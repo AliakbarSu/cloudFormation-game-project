@@ -30,8 +30,12 @@ const invalidAnswerIdsError = () => new Error("ANSWER_IDS_ARRAY_CONTAINS_INVALID
 const invalidAnswerIdError = () => new Error("INVALID_ANSWER_IDS_PROVIDED")
 const invalidCodeError = () => new Error("INVALID_CODE_PROVIDED")
 const invalidAmountError = () => new Error("INVALID_AMOUNT_PROVIDED")
+const invalidSignUpUsernameError = () => new Error("INVALID_USERNAME_PROVIDED")
+const invalidClientIdError = () => new Error("INVALID_CLIENT_ID_PROVIDED")
  
 module.exports = {
+    invalidSignUpUsernameError,
+    invalidClientIdError,
     invalidAmountError,
     invalidAnswerIdError,
     invalidAnswerIdsError,

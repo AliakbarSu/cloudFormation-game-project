@@ -12,6 +12,7 @@ const {
     failedToSearchForPlayersError,
     failedToUpdatePlayerLocationError,
     failedToFindUserByConIdError,
+    failedToGetPlayersPointsError,
     findUserByConIdSafe,
     findUserByEmailSafe,
     findUserByIdSafe,
@@ -19,6 +20,7 @@ const {
     updatePlayersLocationSafe,
     markPlayersAsPlayingSafe,
     getPlayersConIdsSafe,
+    getPlayersPointsSafe,
     registerConnectionIdSafe,
     deregisterConnectionIdSafe,
     searchForPlayersSafe,
@@ -93,6 +95,11 @@ describe('Players Model', function() {
         }
     })
 
+    describe("failedToGetPlayersPointsError", function() {
+        it("Should create a new error object", () => {
+            expect(failedToGetPlayersPointsError().message).to.equal("FAILED_TO_GET_PLAYERS_POINTS")
+        })
+    })
 
     describe("invalidModelError", function() {
         it("Should create a new error object", () => {
@@ -486,6 +493,67 @@ describe('Players Model', function() {
         it("Should resolve if model.find succeed", async () => {
             const result = await getPlayersConIdsSafe(connectionStub, idConverterStub, mockPlayerIds)
             expect(result[0]).to.equal(mockResponse[0].connectionId)
+            expect(findStub.calledOnce).to.be.true
+            expect(findStub.getCall(0).args[0]._id.$in).to.deep.equal(mockPlayerIds)
+        })
+    })
+
+    describe("getPlayersPointsSafe", function() {
+
+        it("Should reject if player ids is invalid", async () => {
+            try {
+                await getPlayersPointsSafe(connectionStub, idConverterStub, "")
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidPlayerIdsError().message)
+            }
+        })
+
+        it("Should reject if model is invalid", async () => {
+            connectionStub = {
+                model: null
+            }
+            try {
+                await getPlayersPointsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(invalidModelError().message)
+            }
+        })
+
+        it("Should reject if calling model throws error", async () => {
+            connectionStub = {
+                model: fake.throws()
+            }
+            try {
+                await getPlayersPointsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(failedToGetPlayersPointsError().message)
+            }
+        })
+
+        it("Should reject if getting players points fails", async () => {
+            connectionStub = {
+                model: fake.returns({find: fake.rejects()})
+            }
+            try {
+                await getPlayersPointsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                throw new Error("FALSE_PASS")
+            }catch(err) {
+                expect(err.message).to.equal(failedToGetPlayersPointsError().message)
+            }
+        })
+
+        it("Should resolve if model.find succeed", async () => {
+            mockResponse = [{_id: "test_id", points: 120}]
+            findStub = fake.resolves(mockResponse)
+            connectionStub = {
+                model: fake.returns({find: findStub})
+            }
+            const result = await getPlayersPointsSafe(connectionStub, idConverterStub, mockPlayerIds)
+            expect(result[0]._id).to.equal(mockResponse[0]._id)
+            expect(result[0].points).to.equal(mockResponse[0].points)
             expect(findStub.calledOnce).to.be.true
             expect(findStub.getCall(0).args[0]._id.$in).to.deep.equal(mockPlayerIds)
         })

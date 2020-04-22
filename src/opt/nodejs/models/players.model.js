@@ -42,6 +42,7 @@ const failedToRegisterConnectionIdError = () => new Error("FAILED_TO_REGISTER_CO
 const failedToDeregisterConnectionIdError = () => new Error("FAILED_TO_DEREGISTER_CONNECTION_ID")
 const failedToSearchForPlayersError = () => new Error("FAILED_TO_SEARCH_FOR_PLAYERS")
 const failedToFindUserByConIdError = () => new Error("FAILED_TO_FIND_USER_BY_CONNECTION_ID")
+const failedToGetPlayersPointsError = () => new Error("FAILED_TO_GET_PLAYERS_POINTS")
 
 
 const convertIdToObjectId = curry((converter, id) => {
@@ -183,6 +184,31 @@ const getPlayersConIdsSafe = curry(async (connection, idConverter, playerIds) =>
     }catch(err) {
         console.log(err)
         return Promise.reject(failedToGetPlayersConIdsError())
+    }
+})
+
+const getPlayersPointsSafe = curry(async (connection, idConverter, playerIds) => {
+    try {
+        if(!isValidPlayerIds(playerIds))
+        return Promise.reject(invalidPlayerIdsError())
+    
+        let model = get("model", connection)
+        if(!model)
+            return Promise.reject(invalidModelError())
+
+        model = model()
+
+        const objectIds = await convertIdsToObjectIds(idConverter, playerIds)
+
+        return model.find({ _id: {$in: objectIds} })
+        .then(user => user.map(doc => ({_id: doc._id, points: doc.points})))
+        .catch(err => {
+            console.log(err)
+            return Promise.reject(failedToGetPlayersPointsError())
+        })
+    }catch(err) {
+        console.log(err)
+        return Promise.reject(failedToGetPlayersPointsError())
     }
 })
 
@@ -377,6 +403,7 @@ const searchForPlayersSafe = curry(async (connection, idConverter, _id, latitude
 module.exports = {
     invalidModelError,
     failedToCreatePlayerError,
+    failedToGetPlayersPointsError,
     failedToFindUserByEmailError,
     failedToFindUserByIdError,
     failedToGetPlayersConIdsError,
@@ -395,6 +422,7 @@ module.exports = {
     findUserByIdSafe,
     findUserByConIdSafe,
     getPlayersConIdsSafe,
+    getPlayersPointsSafe,
     markPlayersAsPlayingSafe,
     updatePlayersLocationSafe,
     registerConnectionIdSafe,
@@ -405,6 +433,7 @@ module.exports = {
     findUserById: findUserByIdSafe(getConnection(), mongoose.Types.ObjectId),
     findUserByConId: findUserByConIdSafe(getConnection()),
     getPlayersConIds: getPlayersConIdsSafe(getConnection(), mongoose.Types.ObjectId),
+    getPlayersPoints: getPlayersPointsSafe(getConnection(), mongoose.Types.ObjectId),
     markPlayersAsPlaying: markPlayersAsPlayingSafe(getConnection(), mongoose.Types.ObjectId),
     updatePlayersLocation:  updatePlayersLocationSafe(getConnection()),
     registerConnectionId: registerConnectionIdSafe(getConnection()),
