@@ -7,6 +7,12 @@ Parameters:
     Description: The name for a project pipeline stage, such as Staging or Prod, for
       which resources are provisioned and deployed.
     Default: production
+  RestApiName:
+    Type: String
+    Default: clickCollectionRestApi
+  ClickCollectRestApiStageName:
+    Type: String
+    Default: production
 Resources:
   ClickCollectRestApi:
     Type: AWS::ApiGateway::RestApi
@@ -41,28 +47,28 @@ Resources:
     Properties:
       RestApiId:
         Ref: ClickCollectRestApi
-      StageName: prod
+      StageName:
+        Ref: ClickCollectRestApiStageName
   signUp:
-    Type: AWS::Lambda::Function
+    Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./src/cognitoSignUp
+      CodeUri: s3://ali-su-artifacts/cad731a28bd46b469f387dc73d132917
       Description: Sign user up by creating a new record in the cognito user pool
       FunctionName: cognitoSignUp
       Handler: index.handler
       MemorySize: 128
       Role:
         Fn::GetAtt:
-        - lambdaIAMRole
+        - signUpRole
         - Arn
       Runtime: nodejs12.x
       Timeout: 10
+      Layers:
+      - Ref: serverlessLayer
       Environment:
         Variables:
-          USER_POOL_ID: placeholder
-          USER_POOL_CLIENT_ID: placeholder
-      Code:
-        S3Bucket: ali-su-artifacts
-        S3Key: fb4862581b55778a64f21b83373cb1b2
+          USER_POOL_ID: ClickCollectCognitoUserPool
+          USER_POOL_CLIENT_ID: ClickCollectCognitoUserPoolClient
   lambdaApiGatewayInvoke:
     Type: AWS::Lambda::Permission
     Properties:
@@ -96,7 +102,7 @@ Resources:
             - logs:PutLogEvents
             Effect: Allow
             Resource:
-            - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${signUp.Name}:*
+            - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/cognitoSignUp:*
         PolicyName: AWSLambdaBasicExecutionRole
       - PolicyDocument:
           Version: '2012-10-17'
@@ -108,13 +114,13 @@ Resources:
             - cognito-identity:UnlinkDeveloperIdentity
             Effect: Allow
             Resource:
-            - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${signUp.Name}:*
+            - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/cognitoSignUp:*
         PolicyName: AmazonCognitoDeveloperAuthenticatedIdentities
   signUpGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${signUp.Name}
+        Fn::Sub: /aws/lambda/${signUp}
       RetentionInDays: 90
   ApiGwAccountConfig:
     DependsOn:
@@ -327,6 +333,103 @@ Resources:
         Format: '''{"requestId":"$context.requestId", "ip": "$context.identity.sourceIp",
           "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime",
           "eventType":"$context.eventType","routeKey":"$context.routeKey", "status":"$context.status","connectionId":"$context.connectionId"}'''
+  MongoDBEventBridge:
+    Type: AWS::Events::EventBus
+    Properties:
+      EventSourceName: aws.partner/mongodb.com/stitch.trigger/5ea164b7525542a0607d79b9
+      Name: aws.partner/mongodb.com/stitch.trigger/5ea164b7525542a0607d79b9
+  searchPlayersEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: search_for_players
+      EventBusName:
+        Ref: MongoDBEventBridge
+      EventPattern:
+        account:
+        - Ref: AWS::AccountId
+      State: ENABLED
+      Targets:
+      - Arn:
+          Fn::GetAtt:
+          - matchPlayers
+          - Arn
+        Id: matchPlayers
+  ClickCollectCognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+        - Name: verified_email
+          Priority: 1
+      AutoVerifiedAttributes:
+      - email
+      LambdaConfig:
+        PostConfirmation:
+          Fn::GetAtt:
+          - CognitoInitializePlayer
+          - Arn
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 6
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      UsernameAttributes:
+      - email
+      UsernameConfiguration:
+        CaseSensitive: true
+      UserPoolName: click
+  ClickCollectCognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: clickCollectCognitoUserPoolClient
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      RefreshTokenValidity: 1
+      SupportedIdentityProviders:
+      - COGNITO
+      UserPoolId:
+        Ref: ClickCollectCognitoUserPool
+  DynamodbRequestsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: _id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: _id
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: '5'
+        WriteCapacityUnits: '5'
+      TableName: requests
+  DynamodbGamesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: _id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: _id
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: '5'
+        WriteCapacityUnits: '5'
+      TableName: games
+  DynamodbQuestionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: _id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: _id
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: '5'
+        WriteCapacityUnits: '5'
+      TableName: questions
   PendingRequestsQue:
     Type: AWS::SQS::Queue
     Properties:
@@ -338,6 +441,24 @@ Resources:
     Properties:
       MessageRetentionPeriod: 86400
       QueueName: PendingGames
+      VisibilityTimeout: 300
+  PendingResultsQue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 86400
+      QueueName: PendingResults
+      VisibilityTimeout: 300
+  PendingTransferQue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 86400
+      QueueName: PendingTransfer
+      VisibilityTimeout: 300
+  PendingQuestionsQue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 86400
+      QueueName: PendingQuestions
       VisibilityTimeout: 300
   WebSocketRouteConnect:
     Type: AWS::Serverless::Function
@@ -356,7 +477,7 @@ Resources:
         - Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
   WebSocketRouteDisconnect:
     Type: AWS::Serverless::Function
     Properties:
@@ -374,7 +495,7 @@ Resources:
         - Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
   CognitoInitializePlayer:
     Type: AWS::Serverless::Function
     Properties:
@@ -392,7 +513,7 @@ Resources:
         - Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
   WebSocketRouteUpdateLocation:
     Type: AWS::Serverless::Function
     Properties:
@@ -410,7 +531,7 @@ Resources:
         - Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
   WebSocketRouteAcceptRequest:
     Type: AWS::Serverless::Function
     Properties:
@@ -428,7 +549,8 @@ Resources:
         - Arn
       Environment:
         Variables:
-          DYNAMODB_REQUESTS_TABLE: placeholder
+          DYNAMODB_REQUESTS_TABLE:
+            Ref: DynamodbRequestsTable
   WebSocketRouteRejectRequest:
     Type: AWS::Serverless::Function
     Properties:
@@ -446,7 +568,8 @@ Resources:
         - Arn
       Environment:
         Variables:
-          DYNAMODB_REQUESTS_TABLE: placeholder
+          DYNAMODB_REQUESTS_TABLE:
+            Ref: DynamodbRequestsTable
   WebSocketRouteSubmitAnswers:
     Type: AWS::Serverless::Function
     Properties:
@@ -464,8 +587,9 @@ Resources:
         - Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
-          DYNAMODB_GAMES_TABLE: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          DYNAMODB_GAMES_TABLE:
+            Ref: DynamodbGamesTable
   LambdaCognitoAuthorizer:
     Type: AWS::Serverless::Function
     Properties:
@@ -483,7 +607,7 @@ Resources:
         - Arn
       Environment:
         Variables:
-          KEYS_URL: https://cognito-idp.us-east-1.amazonaws.com/placeholder-user-pool/.well-known/jwks.json
+          KEYS_URL: https://cognito-idp.us-east-1.amazonaws.com/ClickCollectCognitoUserPool/.well-known/jwks.json
   LambdaCognitoAuthenticator:
     Type: AWS::Serverless::Function
     Properties:
@@ -501,7 +625,7 @@ Resources:
         - Arn
       Environment:
         Variables:
-          USER_POOL_ID: placeholder
+          USER_POOL_ID: ClickCollectCognitoUserPool
   matchPlayers:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -522,7 +646,7 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_REQUESTS_TABLE: requests
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
           MAX_DISTANCE: 100
           SQS_REQUEST_QUE_URL:
             Ref: PendingRequestsQue
@@ -574,9 +698,11 @@ Resources:
         - Arn
       Environment:
         Variables:
-          DYNAMODB_GAMES_TABLE: placeholder
-          MONGO_DB_URI: placeholder
-          SCHEDULED_QUESTIONS_QUE_URL: placeholder
+          DYNAMODB_GAMES_TABLE:
+            Ref: DynamodbGamesTable
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          SCHEDULED_QUESTIONS_QUE_URL:
+            Ref: PendingGamesQue
           WEBSOCKET_API_ENDPOINT:
             Fn::Sub: https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections
   ProcessPendingRequest:
@@ -599,8 +725,10 @@ Resources:
       Environment:
         Variables:
           QUESTIONS_LIMIT: 5
-          DYNAMODB_GAMES_TABLE: placeholder
-          DYNAMODB_REQUESTS_TABLE: placeholder
+          DYNAMODB_GAMES_TABLE:
+            Ref: DynamodbGamesTable
+          DYNAMODB_REQUESTS_TABLE:
+            Ref: DynamodbRequestsTable
   ProcessPointsTransfer:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -620,7 +748,7 @@ Resources:
         - Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
   ProcessResults:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -640,9 +768,11 @@ Resources:
         - Arn
       Environment:
         Variables:
-          DYNAMODB_GAMES_TABLE: placeholder
-          MONGO_DB_URI: placeholder
-          PENDING_POINTS_TRANSFERS_QUE_URL: placeholder
+          DYNAMODB_GAMES_TABLE:
+            Ref: DynamodbGamesTable
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          PENDING_POINTS_TRANSFERS_QUE_URL:
+            Ref: PendingTransferQue
           WEBSOCKET_API_ENDPOINT:
             Fn::Sub: https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections
   ProcessScheduledQuestions:
@@ -664,9 +794,12 @@ Resources:
         - Arn
       Environment:
         Variables:
-          DYNAMODB_GAMES_TABLE: placeholder
-          SCHEDULED_QUESTIONS_QUE_URL: placeholder
-          SCHEDULE_RESULTS_PROCESS_QUE_URL: placeholder
+          DYNAMODB_GAMES_TABLE:
+            Ref: DynamodbGamesTable
+          SCHEDULED_QUESTIONS_QUE_URL:
+            Ref: PendingQuestionsQue
+          SCHEDULE_RESULTS_PROCESS_QUE_URL:
+            Ref: PendingResultsQue
   serverlessLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:

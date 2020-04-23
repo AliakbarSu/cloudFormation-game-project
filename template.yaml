@@ -7,18 +7,24 @@ Parameters:
     Type: String
     Description: The name for a project pipeline stage, such as Staging or Prod, for which resources are provisioned and deployed.
     Default: production
+  RestApiName:
+    Type: String
+    Default: clickCollectionRestApi
+  ClickCollectRestApiStageName:
+    Type: String
+    Default: production
 Resources:
 
   #######################
   # API GATEWAY REST
   #######################
-  ClickCollectRestApi:
+  ClickCollectRestApi: 
     Type: "AWS::ApiGateway::RestApi"
     Properties:
       Name: "Click&Collect REST API"
       Description: "handle all non-websocket routes"
 
-  ClickCollectRestApiSignUpMethod:
+  ClickCollectRestApiSignUpMethod: 
     Type: "AWS::ApiGateway::Method"
     Properties:
       AuthorizationType: "NONE"
@@ -32,31 +38,34 @@ Resources:
       ResourceId: !GetAtt "ClickCollectRestApi.RootResourceId"
       RestApiId: !Ref "ClickCollectRestApi"
 
-  ClickCollectRestApiDeployment:
+  ClickCollectRestApiDeployment: 
     Type: "AWS::ApiGateway::Deployment"
     DependsOn:
       - "ClickCollectRestApiSignUpMethod"
     Properties:
       RestApiId: !Ref "ClickCollectRestApi"
-      StageName: "prod"
+      StageName: !Ref ClickCollectRestApiStageName
 
-  signUp:
-    Type: "AWS::Lambda::Function"
+  signUp: 
+    Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./src/cognitoSignUp
       Description: "Sign user up by creating a new record in the cognito user pool"
       FunctionName: "cognitoSignUp"
       Handler: "index.handler"
       MemorySize: 128
-      Role: !GetAtt "lambdaIAMRole.Arn"
+      Role: !GetAtt "signUpRole.Arn"
       Runtime: nodejs12.x
       Timeout: 10
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
       Environment:
         Variables:
-          USER_POOL_ID: placeholder
-          USER_POOL_CLIENT_ID: placeholder
+          USER_POOL_ID: ClickCollectCognitoUserPool
+          USER_POOL_CLIENT_ID: ClickCollectCognitoUserPoolClient
 
-  lambdaApiGatewayInvoke:
+  lambdaApiGatewayInvoke: 
     Type: "AWS::Lambda::Permission"
     Properties:
       Action: "lambda:InvokeFunction"
@@ -64,7 +73,7 @@ Resources:
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectRestApi}/*/POST/"
 
-  signUpRole:
+  signUpRole: 
     Type: "AWS::IAM::Role"
     Properties:
       AssumeRolePolicyDocument:
@@ -86,7 +95,7 @@ Resources:
                   - "logs:PutLogEvents"
                 Effect: "Allow"
                 Resource:
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${signUp.Name}:*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/cognitoSignUp:*"
           PolicyName: "AWSLambdaBasicExecutionRole"
         - PolicyDocument:
             Version: "2012-10-17"
@@ -98,12 +107,12 @@ Resources:
                   - "cognito-identity:UnlinkDeveloperIdentity"
                 Effect: "Allow"
                 Resource:
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${signUp.Name}:*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/cognitoSignUp:*"
           PolicyName: "AmazonCognitoDeveloperAuthenticatedIdentities"
   signUpGroup:
     Type: "AWS::Logs::LogGroup"
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${signUp.Name}"
+      LogGroupName: !Sub "/aws/lambda/${signUp}"
       RetentionInDays: 90
   
   #######################
@@ -328,28 +337,125 @@ Resources:
   #     TemplateURL: "https://s3.amazonaws.com/ali-su-mongodb-cloudformation/mongoDBAtlas-pack.yaml"
 
 
-  #######################
+  ######################
   # EVENT BRIDGE
+  ######################
+  MongoDBEventBridge:
+    Type: AWS::Events::EventBus
+    # DependsOn:
+    #   - MongoDBAtlasStack
+    Properties: 
+      # EventSourceName: !GetAtt MongoDBAtlasStack.Outputs.EventSourceName
+      # Name: !GetAtt MongoDBAtlasStack.Outputs.EventSourceName
+      EventSourceName: "aws.partner/mongodb.com/stitch.trigger/5ea164b7525542a0607d79b9"
+      Name: "aws.partner/mongodb.com/stitch.trigger/5ea164b7525542a0607d79b9"
+  searchPlayersEventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "search_for_players"
+      EventBusName: !Ref MongoDBEventBridge
+      EventPattern: 
+        account: 
+          - !Ref "AWS::AccountId"
+      State: "ENABLED"
+      Targets: 
+        - Arn: !GetAtt matchPlayers.Arn
+          Id: matchPlayers
+
   #######################
-  # MongoDBEventBridge:
-  #   Type: AWS::Events::EventBus
-  #   DependsOn:
-  #     - MongoDBAtlasStack
-  #   Properties: 
-  #     EventSourceName: !GetAtt MongoDBAtlasStack.Outputs.EventSourceName
-  #     Name: !GetAtt MongoDBAtlasStack.Outputs.EventSourceName
-  # searchPlayersEventRule: 
-  #   Type: AWS::Events::Rule
-  #   Properties: 
-  #     Description: "search_for_players"
-  #     EventBusName: !Ref MongoDBEventBridge
-  #     EventPattern: 
-  #       account: 
-  #         - !Ref "AWS::AccountId"
-  #     State: "ENABLED"
-  #     Targets: 
-  #       - Arn: !GetAtt matchPlayers.Arn
-  #         Id: matchPlayers
+  # COGNITO
+  #######################
+  ClickCollectCognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties: 
+      AccountRecoverySetting:
+         RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      # AdminCreateUserConfig: 
+      #   InviteMessageTemplate: 
+      #     EmailMessage: "Thanks for signing up with click&collect"
+      #     EmailSubject: "Thankyou letter"
+      AutoVerifiedAttributes: 
+        - email
+      # EmailVerificationMessage: "Please verify your email address by clicking on the provided link"
+      # EmailVerificationSubject: "ClickCollect Email Verification"
+      LambdaConfig: 
+        PostConfirmation: !GetAtt CognitoInitializePlayer.Arn
+      Policies: 
+        PasswordPolicy:
+          MinimumLength: 6
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      UsernameAttributes: 
+        - email
+      UsernameConfiguration: 
+        CaseSensitive: true
+      UserPoolName: click
+      # UserPoolTags: '{"app": "ClickCollect"}'
+
+  ClickCollectCognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties: 
+      ClientName: clickCollectCognitoUserPoolClient
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      RefreshTokenValidity: 1
+      SupportedIdentityProviders: 
+        - COGNITO
+      UserPoolId: !Ref ClickCollectCognitoUserPool
+  #######################
+  # DYNAMO_DB TABLES
+  #######################
+  DynamodbRequestsTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "_id"
+          AttributeType: "S"
+      KeySchema: 
+        - 
+          AttributeName: "_id"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: "5"
+        WriteCapacityUnits: "5"
+      TableName: "requests"
+
+  DynamodbGamesTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "_id"
+          AttributeType: "S"
+      KeySchema: 
+        - 
+          AttributeName: "_id"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: "5"
+        WriteCapacityUnits: "5"
+      TableName: "games"
+
+  DynamodbQuestionsTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "_id"
+          AttributeType: "S"
+      KeySchema: 
+        - 
+          AttributeName: "_id"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: "5"
+        WriteCapacityUnits: "5"
+      TableName: "questions"
           
   #######################
   # SQS RESOURCES
@@ -369,6 +475,33 @@ Resources:
       # FifoQueue: true
       MessageRetentionPeriod: 86400
       QueueName: PendingGames
+      VisibilityTimeout: 300
+
+  PendingResultsQue:
+    Type: AWS::SQS::Queue
+    Properties: 
+      # ContentBasedDeduplication: true
+      # FifoQueue: true
+      MessageRetentionPeriod: 86400
+      QueueName: PendingResults
+      VisibilityTimeout: 300
+
+  PendingTransferQue:
+    Type: AWS::SQS::Queue
+    Properties: 
+      # ContentBasedDeduplication: true
+      # FifoQueue: true
+      MessageRetentionPeriod: 86400
+      QueueName: PendingTransfer
+      VisibilityTimeout: 300
+
+  PendingQuestionsQue:
+    Type: AWS::SQS::Queue
+    Properties: 
+      # ContentBasedDeduplication: true
+      # FifoQueue: true
+      MessageRetentionPeriod: 86400
+      QueueName: PendingQuestions
       VisibilityTimeout: 300
   #######################
   # LAMBDA FUNCTIONS
@@ -392,7 +525,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
           # MongoDBAtlasStack.Outputs.MongoDbURL
   WebSocketRouteDisconnect:
     Type: AWS::Serverless::Function
@@ -410,7 +543,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
           # MongoDBAtlasStack.Outputs.MongoDbURL
   CognitoInitializePlayer:
     Type: AWS::Serverless::Function
@@ -428,7 +561,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
   WebSocketRouteUpdateLocation:
     Type: AWS::Serverless::Function
     Properties:
@@ -445,7 +578,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
   WebSocketRouteAcceptRequest:
     Type: AWS::Serverless::Function
     Properties:
@@ -462,7 +595,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          DYNAMODB_REQUESTS_TABLE: placeholder
+          DYNAMODB_REQUESTS_TABLE: !Ref DynamodbRequestsTable
   WebSocketRouteRejectRequest:
     Type: AWS::Serverless::Function
     Properties:
@@ -479,7 +612,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          DYNAMODB_REQUESTS_TABLE: placeholder
+          DYNAMODB_REQUESTS_TABLE: !Ref DynamodbRequestsTable
   WebSocketRouteSubmitAnswers:
     Type: AWS::Serverless::Function
     Properties:
@@ -496,8 +629,8 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
-          DYNAMODB_GAMES_TABLE: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
   LambdaCognitoAuthorizer:
     Type: AWS::Serverless::Function
     Properties:
@@ -514,7 +647,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          KEYS_URL: "https://cognito-idp.us-east-1.amazonaws.com/placeholder-user-pool/.well-known/jwks.json"
+          KEYS_URL: "https://cognito-idp.us-east-1.amazonaws.com/ClickCollectCognitoUserPool/.well-known/jwks.json"
   
   LambdaCognitoAuthenticator:
     Type: AWS::Serverless::Function
@@ -532,7 +665,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          USER_POOL_ID: placeholder 
+          USER_POOL_ID: ClickCollectCognitoUserPool
   matchPlayers:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -552,7 +685,7 @@ Resources:
       Environment:
         Variables:
           DYNAMODB_REQUESTS_TABLE: requests
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
           MAX_DISTANCE: 100
           SQS_REQUEST_QUE_URL: !Ref PendingRequestsQue
           WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
@@ -608,9 +741,9 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          DYNAMODB_GAMES_TABLE: placeholder
-          MONGO_DB_URI: placeholder
-          SCHEDULED_QUESTIONS_QUE_URL: placeholder
+          DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          SCHEDULED_QUESTIONS_QUE_URL: !Ref PendingGamesQue
           WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
 
   ProcessPendingRequest:
@@ -632,8 +765,8 @@ Resources:
       Environment:
         Variables:
           QUESTIONS_LIMIT: 5
-          DYNAMODB_GAMES_TABLE: placeholder
-          DYNAMODB_REQUESTS_TABLE: placeholder
+          DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
+          DYNAMODB_REQUESTS_TABLE: !Ref DynamodbRequestsTable
 
   ProcessPointsTransfer:
     Type: AWS::Serverless::Function
@@ -653,7 +786,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          MONGO_DB_URI: placeholder
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
 
   ProcessResults:
     Type: AWS::Serverless::Function
@@ -673,9 +806,9 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          DYNAMODB_GAMES_TABLE: placeholder
-          MONGO_DB_URI: placeholder
-          PENDING_POINTS_TRANSFERS_QUE_URL: placeholder
+          DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          PENDING_POINTS_TRANSFERS_QUE_URL: !Ref PendingTransferQue
           WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
 
   ProcessScheduledQuestions:
@@ -696,9 +829,9 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          DYNAMODB_GAMES_TABLE: placeholder
-          SCHEDULED_QUESTIONS_QUE_URL: placeholder
-          SCHEDULE_RESULTS_PROCESS_QUE_URL: placeholder
+          DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
+          SCHEDULED_QUESTIONS_QUE_URL: !Ref PendingQuestionsQue
+          SCHEDULE_RESULTS_PROCESS_QUE_URL: !Ref PendingResultsQue
   #######################
   # FUNCTION LAYERS
   #######################

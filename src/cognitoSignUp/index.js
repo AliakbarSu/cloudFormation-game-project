@@ -94,8 +94,8 @@ const handlerSafe = curry(async (getCognitoUserPool, getCognitoUserAttributes, u
     try {
     
         const userData = constructPoolDataObject(userPoolId, clientId)
-        CognitoUserPool = getCognitoUserPool(userData)
-        const signUp = get("signUp", CognitoUserPool)
+        const cognitoUserPool = getCognitoUserPool(userData)
+        const signUp = get("signUp", cognitoUserPool)
 
         if(!signUp) {
             console.log(failedToGetSignUpMethodError())
