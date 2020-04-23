@@ -55,9 +55,10 @@ const successResponseObject = curry((username) => ({
 const signUpUser = curry((signUp, email, password, attributes) => {
     return new Promise((success, failed) => {
         signUp(email, password, attributes, null, (err, data) => {
-            if(err)
+            if(err) {
+                console.log(err)
                 failed(encounteredErrorWhileCallingSignUpMethod())
-            else
+            }else
                 success(data)
         })
     })
@@ -68,12 +69,12 @@ const handlerSafe = curry(async (getCognitoUserPool, getCognitoUserAttributes, u
 
     if(!isValidUserPool(userPoolId)) {
         console.log(invalidUserPoolError())
-        return Promise.reject(failedToSignUpUserInternalError())
+        return Promise.reject(failedToSignUpUserInternalError(context))
     }
         
     if(!isValidClientId(clientId)) {
         console.log(invalidClientIdError())
-        return Promise.reject(failedToSignUpUserInternalError())
+        return Promise.reject(failedToSignUpUserInternalError(context))
     }
 
     const email = get("email", event)
@@ -81,13 +82,13 @@ const handlerSafe = curry(async (getCognitoUserPool, getCognitoUserAttributes, u
     const password = get("password", event)
 
     if(!isValidEmail(email))
-        return Promise.reject(failedToSignUpUserInputsError(context, invalidEmail()))
+        return Promise.reject(failedToSignUpUserInputsError(context, invalidEmail().message))
 
     if(!isValidSignUpUsername(username))
-        return Promise.reject(failedToSignUpUserInputsError(context, invalidSignUpUsernameError()))
+        return Promise.reject(failedToSignUpUserInputsError(context, invalidSignUpUsernameError().message))
         
     if(!isValidPassword(password))
-        return Promise.reject(failedToSignUpUserInputsError(context, invalidPasswordError()))
+        return Promise.reject(failedToSignUpUserInputsError(context, invalidPasswordError().message))
 
     try {
     
@@ -97,7 +98,7 @@ const handlerSafe = curry(async (getCognitoUserPool, getCognitoUserAttributes, u
 
         if(!signUp) {
             console.log(failedToGetSignUpMethodError())
-            return Promise.reject(failedToSignUpUserInternalError())
+            return Promise.reject(failedToSignUpUserInternalError(context))
         }
 
         const userAttributesList = [
@@ -113,7 +114,7 @@ const handlerSafe = curry(async (getCognitoUserPool, getCognitoUserAttributes, u
 
     }catch(err) {
         console.log(err)
-        return Promise.reject(failedToSignUpUserInternalError())
+        return Promise.reject(failedToSignUpUserInternalError(context))
     }
 
 })
@@ -123,6 +124,7 @@ module.exports = {
     failedToSignUpUserInternalError,
     failedToSignUpUserInputsError,
     failedToGetSignUpMethodError,
+    encounteredErrorWhileCallingSignUpMethod,
     constructPoolDataObject,
     constructUserAttributeObject,
     successResponseObject,
