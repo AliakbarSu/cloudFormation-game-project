@@ -76,10 +76,10 @@ module.exports = {
     getPlayersIds,
     processGameSafe,
     processGame: processGameSafe(
-        getPlayersConIds, 
-        broadcastMessages, 
-        markQuestionAsFetched, 
-        scheduleNextQuestion, 
+        getPlayersConIds(process.env.MONGO_DB_URI), 
+        broadcastMessages({ endpoint: process.env.WEBSOCKET_API_ENDPOINT }), 
+        markQuestionAsFetched(process.env.DYNAMODB_GAMES_TABLE), 
+        scheduleNextQuestion(process.env.SCHEDULED_QUESTIONS_QUE_URL), 
         Object.keys)
 }
 

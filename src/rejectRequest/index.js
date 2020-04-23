@@ -46,5 +46,8 @@ const rejectRequestHandler = curry(async (rejectRequest, parseToken, convertSubT
 
 module.exports = {
     rejectRequestHandler,
-    handler: rejectRequestHandler(rejectRequest, parseToken, convertSubToUid)
+    handler: rejectRequestHandler(
+        rejectRequest(process.env.DYNAMODB_REQUESTS_TABLE, new Date().getTime()), 
+        parseToken, 
+        convertSubToUid)
 }

@@ -69,6 +69,10 @@ module.exports = {
     convertPlayersObjectToArrayForm,
     constructGameParamsObject,
     processRequestSafe,
-    processRequest: processRequestSafe(getPendingRequest, createGame, Object.keys, process.QUESTIONS_LIMIT)
+    processRequest: processRequestSafe(
+        getPendingRequest(process.env.DYNAMODB_REQUESTS_TABLE), 
+        createGame(process.env.DYNAMODB_GAMES_TABLE), 
+        Object.keys, 
+        process.QUESTIONS_LIMIT)
 }
 

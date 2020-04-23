@@ -68,10 +68,10 @@ module.exports = {
     createConnectionObject,
     createConnection,
     getConnectionSafe,
-    getConnection: () => {
+    getConnection: (URI) => {
         if(currentConnection == null) {
-            currentConnection = getConnectionSafe(currentConnection, mongoose.createConnection)
+            currentConnection = getConnectionSafe(currentConnection, mongoose.createConnection, URI)
         }
-        return getConnectionSafe(getConnectionSafe(currentConnection, mongoose.createConnection))
+        return getConnectionSafe(currentConnection, mongoose.createConnection, URI)
     }
 }

@@ -52,7 +52,7 @@ const handlerSafe = curry(async (unmarshall, processGame, event, context) => {
     const mapedRecords = await Promise.all(
         filteredRecords.map(record => 
             unmarshallData(
-                unmarshall, 
+                unmarshall,  
                 record.dynamodb.NewImage,
                 record.dynamodb.Keys._id.S
             ).catch(e => e))

@@ -23,7 +23,7 @@ const handlerSafe = curry(async (registerConnectionId, event, context) => {
     if(!isValidConnectionId(connectionId))
         return Promise.reject(invalidConnectionIdError())
     
-    if(!isValidEmail(userEmail))
+    if(!isValidEmail(userEmail)) 
         return Promise.reject(invalidEmail())
 
     return registerConnectionId(connectionId, userEmail)
@@ -32,5 +32,5 @@ const handlerSafe = curry(async (registerConnectionId, event, context) => {
 
 module.exports = {
     handlerSafe,
-    handler: handlerSafe(registerConnectionId())
+    handler: handlerSafe(registerConnectionId(process.env.MONGODB_URI))
 }

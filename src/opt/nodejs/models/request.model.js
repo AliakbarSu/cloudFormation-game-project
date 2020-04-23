@@ -178,9 +178,9 @@ module.exports = {
     failedToAddRequestError,
     invalidRequestIdError,
     failedToFetchRequestError,
-    addRequest: addRequestSafe(getConnector, uuid.v4, process.env.DYNAMODB_REQUESTS_TABLE, new Date().getTime()),
-    getPendingRequest: getPendingRequestSafe(getConnector, process.env.DYNAMODB_REQUESTS_TABLE),
-    acceptRequest: acceptRequestSafe(getConnector, process.env.DYNAMODB_REQUESTS_TABLE, new Date().getTime()),
-    rejectRequest: rejectRequestSafe(getConnector, process.env.DYNAMODB_REQUESTS_TABLE, new Date().getTime()),
+    addRequest: addRequestSafe(getConnector, uuid.v4),
+    getPendingRequest: getPendingRequestSafe(getConnector),
+    acceptRequest: acceptRequestSafe(getConnector),
+    rejectRequest: rejectRequestSafe(getConnector),
 }
 

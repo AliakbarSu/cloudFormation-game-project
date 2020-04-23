@@ -2,12 +2,120 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: A Node.js web service deployed to AWS Lambda.
 Parameters:
-  StageApi:
+  Stage:
     Type: String
     Description: The name for a project pipeline stage, such as Staging or Prod, for
       which resources are provisioned and deployed.
-    Default: prod
+    Default: production
 Resources:
+  ClickCollectRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: Click&Collect REST API
+      Description: handle all non-websocket routes
+  ClickCollectRestApiSignUpMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn:
+              Fn::GetAtt:
+              - signUp
+              - Arn
+      ResourceId:
+        Fn::GetAtt:
+        - ClickCollectRestApi
+        - RootResourceId
+      RestApiId:
+        Ref: ClickCollectRestApi
+  ClickCollectRestApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+    - ClickCollectRestApiSignUpMethod
+    Properties:
+      RestApiId:
+        Ref: ClickCollectRestApi
+      StageName: prod
+  signUp:
+    Type: AWS::Lambda::Function
+    Properties:
+      CodeUri: ./src/cognitoSignUp
+      Description: Sign user up by creating a new record in the cognito user pool
+      FunctionName: cognitoSignUp
+      Handler: index.handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - lambdaIAMRole
+        - Arn
+      Runtime: nodejs12.x
+      Timeout: 10
+      Environment:
+        Variables:
+          USER_POOL_ID: placeholder
+          USER_POOL_CLIENT_ID: placeholder
+      Code:
+        S3Bucket: ali-su-artifacts
+        S3Key: fb4862581b55778a64f21b83373cb1b2
+  lambdaApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::GetAtt:
+        - signUp
+        - Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectRestApi}/*/POST/
+  signUpRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+      Policies:
+      - PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${signUp.Name}:*
+        PolicyName: AWSLambdaBasicExecutionRole
+      - PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Action:
+            - cognito-identity:GetOpenIdTokenForDeveloperIdentity
+            - cognito-identity:LookupDeveloperIdentity
+            - cognito-identity:MergeDeveloperIdentities
+            - cognito-identity:UnlinkDeveloperIdentity
+            Effect: Allow
+            Resource:
+            - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${signUp.Name}:*
+        PolicyName: AmazonCognitoDeveloperAuthenticatedIdentities
+  signUpGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${signUp.Name}
+      RetentionInDays: 90
   ApiGwAccountConfig:
     DependsOn:
     - ClickCollectWebsocket
@@ -203,9 +311,9 @@ Resources:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       StageName:
-        Fn::Sub: ${StageApi}
+        Fn::Sub: ${Stage}
       Description:
-        Fn::Sub: ${StageApi} traffic
+        Fn::Sub: ${Stage} traffic
       DeploymentId:
         Ref: ClickCollectWebSocketDeployment
       ApiId:
@@ -237,7 +345,7 @@ Resources:
       FunctionName: webSocketRouteConnect
       Handler: connect.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/1c774721bb4fb5be5cdba2dd547b0e5e
+      CodeUri: s3://ali-su-artifacts/5946adca9c211e3abd2ccdbd3b62aeb7
       Layers:
       - Ref: serverlessLayer
       Timeout: 3
@@ -248,15 +356,14 @@ Resources:
         - Arn
       Environment:
         Variables:
-          API_GATEWAY_REGION: us-east-1
-          DYNAMODB_REQUESTS_TABLE: requests
+          MONGO_DB_URI: placeholder
   WebSocketRouteDisconnect:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: webSocketRouteDisconnect
       Handler: disconnect.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/471579494eb5a6f79927bcb67f577c8d
+      CodeUri: s3://ali-su-artifacts/2e43395a37d09a01d841e5f8971c912a
       Layers:
       - Ref: serverlessLayer
       Timeout: 3
@@ -267,75 +374,32 @@ Resources:
         - Arn
       Environment:
         Variables:
-          API_GATEWAY_REGION: us-east-1
-          DYNAMODB_REQUESTS_TABLE: requests
+          MONGO_DB_URI: placeholder
+  CognitoInitializePlayer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cognitoInitializePlayer
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/89ec0d107e052763c003ee97663eff2b
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          MONGO_DB_URI: placeholder
   WebSocketRouteUpdateLocation:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: webSocketRouteUpdateLocation
       Handler: index.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/5123d7212c79c99e219018abbb40038b
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 3
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - MatchPlayersRole
-        - Arn
-  WebSocketRouteAcceptRequest:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: webSocketRouteAcceptRequest
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/35076e90dfea691bbc0c24d5a22d8f03
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 3
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - MatchPlayersRole
-        - Arn
-  WebSocketRouteRejectRequest:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: webSocketRouteRejectRequest
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/b6b15e169894e24da1e8572ccf26e276
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 3
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - MatchPlayersRole
-        - Arn
-  WebSocketRouteSubmitAnswers:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: webSocketRouteSubmitAnswers
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/f4ba310017f10050f3449918887abc89
-      Layers:
-      - Ref: serverlessLayer
-      Timeout: 3
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - MatchPlayersRole
-        - Arn
-  LambdaCognitoAuthorizer:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: LambdaCognitoAuthorizer
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/c7d6894042cfbf03637626b6ca477ef5
+      CodeUri: s3://ali-su-artifacts/7fbf9ec52889e7e35641c89c15041677
       Layers:
       - Ref: serverlessLayer
       Timeout: 3
@@ -346,9 +410,98 @@ Resources:
         - Arn
       Environment:
         Variables:
-          COGNITO_USER_POOL: us-east-1_5i9hLQyTN
-          COGNITO_USER_POOL_CLIENT: gdvig07kj34c7lttk57ccgebc
-          KEYS_URL: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_5i9hLQyTN/.well-known/jwks.json
+          MONGO_DB_URI: placeholder
+  WebSocketRouteAcceptRequest:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteAcceptRequest
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/c569130c93d23f8e49fd4ac0820d91ad
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          DYNAMODB_REQUESTS_TABLE: placeholder
+  WebSocketRouteRejectRequest:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteRejectRequest
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/f28d85050193ba105b2a038637375fcd
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          DYNAMODB_REQUESTS_TABLE: placeholder
+  WebSocketRouteSubmitAnswers:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: webSocketRouteSubmitAnswers
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/36d369f94f7240de6cd240318dde0c42
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          MONGO_DB_URI: placeholder
+          DYNAMODB_GAMES_TABLE: placeholder
+  LambdaCognitoAuthorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: LambdaCognitoAuthorizer
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/a8a2116b27b61cfd5282ded79255c784
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          KEYS_URL: https://cognito-idp.us-east-1.amazonaws.com/placeholder-user-pool/.well-known/jwks.json
+  LambdaCognitoAuthenticator:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: LambdaCognitoAuthenticator
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/cc7d26aa03413c3b20a76e56ea49afb7
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          USER_POOL_ID: placeholder
   matchPlayers:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -357,7 +510,33 @@ Resources:
       FunctionName: matchPlayers
       Handler: matchPlayers.handler
       Runtime: nodejs12.x
-      CodeUri: s3://ali-su-artifacts/c0cfe8fabc449784f8a52de07b114d3c
+      CodeUri: s3://ali-su-artifacts/6663dd71b407d797b2c848bcb839921d
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          DYNAMODB_REQUESTS_TABLE: requests
+          MONGO_DB_URI: placeholder
+          MAX_DISTANCE: 100
+          SQS_REQUEST_QUE_URL:
+            Ref: PendingRequestsQue
+          WEBSOCKET_API_ENDPOINT:
+            Fn::Sub: https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections
+  acceptRequest:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: acceptRequest
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/c569130c93d23f8e49fd4ac0820d91ad
       Layers:
       - Ref: serverlessLayer
       Timeout: 3
@@ -370,17 +549,130 @@ Resources:
         Variables:
           API_GATEWAY_REGION: us-east-1
           DYNAMODB_REQUESTS_TABLE: requests
-          PLAYERS_DISTANCE: 100
+          PLAYERS_DISTANCE: '100'
           SQS_PENDINGREQUESTS_URL:
             Ref: PendingRequestsQue
           WEBSOCKET_API_ENDPOINT:
             Fn::Sub: https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections
+          KEYS_URL: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_5i9hLQyTN/.well-known/jwks.json
+  ProcessPendingGames:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processPendingGames
+      Handler: processPendingGames.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/c24583aacd7a3e3583f8eb17fe269584
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          DYNAMODB_GAMES_TABLE: placeholder
+          MONGO_DB_URI: placeholder
+          SCHEDULED_QUESTIONS_QUE_URL: placeholder
+          WEBSOCKET_API_ENDPOINT:
+            Fn::Sub: https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections
+  ProcessPendingRequest:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processPendingRequests
+      Handler: processPendingRequests.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/bb8e3383d6dff7de52d9ef04abfecd31
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          QUESTIONS_LIMIT: 5
+          DYNAMODB_GAMES_TABLE: placeholder
+          DYNAMODB_REQUESTS_TABLE: placeholder
+  ProcessPointsTransfer:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processPointsTransfer
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/7baf30f66c2fab956932355a73f1bcc7
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          MONGO_DB_URI: placeholder
+  ProcessResults:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processResults
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/e21e29ce07eb17f4874e27eddc6aa955
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          DYNAMODB_GAMES_TABLE: placeholder
+          MONGO_DB_URI: placeholder
+          PENDING_POINTS_TRANSFERS_QUE_URL: placeholder
+          WEBSOCKET_API_ENDPOINT:
+            Fn::Sub: https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections
+  ProcessScheduledQuestions:
+    Type: AWS::Serverless::Function
+    DependsOn:
+    - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processScheduledQuestions
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: s3://ali-su-artifacts/71fe17f1283b9fc8296aecc1670bfe1b
+      Layers:
+      - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - MatchPlayersRole
+        - Arn
+      Environment:
+        Variables:
+          DYNAMODB_GAMES_TABLE: placeholder
+          SCHEDULED_QUESTIONS_QUE_URL: placeholder
+          SCHEDULE_RESULTS_PROCESS_QUE_URL: placeholder
   serverlessLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
       LayerName: serverlessLayer
       Description: Layer description
-      ContentUri: s3://ali-su-artifacts/64ac710842dc1e8e9b26c35374849be9
+      ContentUri: s3://ali-su-artifacts/f997f8042d9b7e100077f0a1653a7ba1
       CompatibleRuntimes:
       - nodejs12.x
       - nodejs8.10
@@ -509,6 +801,8 @@ Resources:
             - apigateway.amazonaws.com
           Action: sts:AssumeRole
       Path: /
+      ManagedPolicyArns:
+      - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
   FetchLambdaCodeFromS3:
     Type: AWS::IAM::Policy
     Properties:
@@ -523,3 +817,7 @@ Resources:
           - s3:GetObject
           - s3:GetObjectACL
           Resource: arn:aws:s3:::ali-serverless-architecture/*
+Outputs:
+  ClickCollectRestApiInvokeURL:
+    Value:
+      Fn::Sub: https://${ClickCollectRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectRestApiStageName}

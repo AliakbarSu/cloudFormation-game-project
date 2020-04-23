@@ -1,3 +1,4 @@
+let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 const { curry, get } = require('lodash/fp')
 const AmazonCognitoIdentity = require('amazon-cognito-identity-js')
 
@@ -7,14 +8,14 @@ const {
     isValidEmail,
     isValidSignUpUsername,
     isValidPassword
-} = require('../opt/nodejs/utils/validators/index')
+} = require(layerPath + 'utils/validators/index')
 const {
     invalidUserPoolError,
     invalidClientIdError,
     invalidEmail,
     invalidSignUpUsernameError,
     invalidPasswordError
-} = require('../opt/nodejs/utils/errors/general')
+} = require(layerPath + 'utils/errors/general')
 
 
 const failedToGetSignUpMethodError = () => new Error("FAILED_TO_GET_SIGN_UP_METHOD")

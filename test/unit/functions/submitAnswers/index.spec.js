@@ -14,14 +14,13 @@ chai.use(chaiAsPromised)
 describe("submitAnswers", function() {
     let mockEvent, mockContext, mockGameId,
     mockQuestionId, mockAnswerIds, mockConnectionId,
-    findUserByConIdStub, submitAnswersStub, mockTableName
+    findUserByConIdStub, submitAnswersStub
 
     this.beforeEach(() => {
         mockGameId = "test_game_id"
         mockQuestionId = "test_question_id"
         mockAnswerIds = ["answer1", "answer2"]
         mockConnectionId = "test_connection_id"
-        mockTableName = "test_table"
         mockContext = {
             callbackWaitsForEmptyEventLoop: true
         }
@@ -45,7 +44,7 @@ describe("submitAnswers", function() {
     describe("handlerSafe", function() {
         it("Should set callbackWaitsForEmptyEventLoop to false", async () => {
             await handlerSafe(findUserByConIdStub, 
-                submitAnswersStub, mockTableName, mockEvent, mockContext)
+                submitAnswersStub, mockEvent, mockContext)
             expect(mockContext.callbackWaitsForEmptyEventLoop).to.be.false
         })
 
@@ -53,29 +52,19 @@ describe("submitAnswers", function() {
             mockEvent.connectionId = null
             try {
                 await handlerSafe(findUserByConIdStub, 
-                    submitAnswersStub, mockTableName, mockEvent, mockContext)
+                    submitAnswersStub, mockEvent, mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal("INVALID_CONNECTION_ID_PROVIDED")
             }
         })
 
-        it("Should handle invalid table name", async () => {
-            mockTableName = null
-            try {
-                await handlerSafe(findUserByConIdStub, 
-                    submitAnswersStub, mockTableName, mockEvent, mockContext)
-                throw new Error("FALSE_PASS")
-            }catch(err) {
-                expect(err.message).to.equal("INVALID_TABLE_NAME_PROVIDED")
-            }
-        })
 
         it("Should handle invalid gameId", async () => {
             mockEvent.gameId = null
             try {
                 await handlerSafe(findUserByConIdStub, 
-                    submitAnswersStub, mockTableName, mockEvent, mockContext)
+                    submitAnswersStub, mockEvent, mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal("INVALID_GAME_ID_PROVIDED")
@@ -86,7 +75,7 @@ describe("submitAnswers", function() {
             mockEvent.questionId = null
             try {
                 await handlerSafe(findUserByConIdStub, 
-                    submitAnswersStub, mockTableName, mockEvent, mockContext)
+                    submitAnswersStub, mockEvent, mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal("INVALID_QUESTION_ID_PROVIDED")
@@ -97,7 +86,7 @@ describe("submitAnswers", function() {
             mockEvent.answerIds = []
             try {
                 await handlerSafe(findUserByConIdStub, 
-                    submitAnswersStub, mockTableName, mockEvent, mockContext)
+                    submitAnswersStub, mockEvent, mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal("INVALID_ANSWER_IDS_PROVIDED")
@@ -108,7 +97,7 @@ describe("submitAnswers", function() {
             mockEvent.answerIds = [null, ""]
             try {
                 await handlerSafe(findUserByConIdStub, 
-                    submitAnswersStub, mockTableName, mockEvent, mockContext)
+                    submitAnswersStub, mockEvent, mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal("ANSWER_IDS_ARRAY_CONTAINS_INVALID_ID")
@@ -119,7 +108,7 @@ describe("submitAnswers", function() {
             findUserByConIdStub = fake.rejects()
             try {
                 await handlerSafe(findUserByConIdStub, 
-                    submitAnswersStub, mockTableName, mockEvent, mockContext)
+                    submitAnswersStub, mockEvent, mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal("FAILED_TO_SUBMIT_ANSWERS")
@@ -130,7 +119,7 @@ describe("submitAnswers", function() {
             submitAnswersStub = fake.rejects()
             try {
                 await handlerSafe(findUserByConIdStub, 
-                    submitAnswersStub, mockTableName, mockEvent, mockContext)
+                    submitAnswersStub, mockEvent, mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal("FAILED_TO_SUBMIT_ANSWERS")
@@ -139,7 +128,7 @@ describe("submitAnswers", function() {
 
         it("Should resolve if answers were submitted successfully", async () => {
             const result = await handlerSafe(findUserByConIdStub, 
-                submitAnswersStub, mockTableName, mockEvent, mockContext)
+                submitAnswersStub, mockEvent, mockContext)
             expect(result).to.equal("ANSWERS_SUBMITTED_SUCCESSFULLY")
         })
     })

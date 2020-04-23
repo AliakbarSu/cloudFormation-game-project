@@ -2,7 +2,7 @@ let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 
 const { curry, get } = require("lodash/fp")
 const { createPlayer } = require(layerPath + "models/players.model")
-const { convertSubToUid } = require('../opt/nodejs/utils/auth/convert-to-uid')
+const { convertSubToUid } = require(layerPath + 'utils/auth/convert-to-uid')
 const {
     isValidSub,
     isValidEmail
@@ -45,7 +45,7 @@ const handlerSafe = curry(async (createPlayer, event, context) => {
 
 module.exports = {
     handlerSafe,
-    handler: handlerSafe(createPlayer())
+    handler: handlerSafe(createPlayer(process.env.MONGO_DB_URI))
 }
 
 

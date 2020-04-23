@@ -4,16 +4,14 @@ const {
     isValidConnectionId,
     isValidGameId,
     isValidQuestionId,
-    isValidAnswerIds,
-    isValidTableName
+    isValidAnswerIds
 } = require(layerPath + 'utils/validators/index')
 const {
     invalidConnectionIdError,
     invalidGameIdError,
     invalidQuestionIdError,
     invalidAnswerIdError,
-    invalidAnswerIdsError,
-    invalidTableNameError
+    invalidAnswerIdsError
 } = require(layerPath + 'utils/errors/general')
 const { findUserByConId } = require(layerPath + 'models/players.model')
 const { submitAnswer } = require(layerPath + 'models/game.model')
@@ -21,16 +19,13 @@ const { submitAnswer } = require(layerPath + 'models/game.model')
 
 const failedToSubmitAnswersError = () => new Error("FAILED_TO_SUBMIT_ANSWERS")
 
-const handlerSafe = curry(async (findUserByConId, submitAnswers, tableName, event, context) => {
+const handlerSafe = curry(async (findUserByConId, submitAnswers, event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;                                                                                                                                                              
 
     const connectionId = get("connectionId", event)
     const gameId = get("gameId", event)
     const questionId = get("questionId", event)
     const answerIds = get("answerIds", event)
-
-    if(!isValidTableName(tableName))
-        return Promise.reject(invalidTableNameError())
 
     if(!isValidConnectionId(connectionId))
         return Promise.reject(invalidConnectionIdError())
@@ -49,7 +44,7 @@ const handlerSafe = curry(async (findUserByConId, submitAnswers, tableName, even
 
     try {
         const playerId = await findUserByConId(connectionId)
-        await submitAnswers(tableName, gameId, playerId, questionId, answerIds)
+        await submitAnswers(gameId, playerId, questionId, answerIds)
         return Promise.resolve("ANSWERS_SUBMITTED_SUCCESSFULLY")
     }catch(err) {
         console.log(err)
@@ -60,5 +55,7 @@ const handlerSafe = curry(async (findUserByConId, submitAnswers, tableName, even
 module.exports = {
     failedToSubmitAnswersError,
     handlerSafe,
-    handler: handlerSafe(findUserByConId, submitAnswer, process.env.TABLE_NAME)
+    handler: handlerSafe(
+        findUserByConId(process.env.MONGO_DB_URI), 
+        submitAnswer(process.env.DYNAMODB_GAMES_TABLE))
 }

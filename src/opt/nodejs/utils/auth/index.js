@@ -38,7 +38,7 @@ const _parseToken = curry(async (extractKid, getClaims, fetchKeys, validateExpir
         return Promise.reject(failedToParseTokenError())
     }
 
-})
+}) 
 
 
 module.exports = {

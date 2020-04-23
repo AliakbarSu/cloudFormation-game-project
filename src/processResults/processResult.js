@@ -1,11 +1,11 @@
 let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 const { curry, get, getOr } = require('lodash/fp')
-const { isValidGameId } = require('../opt/nodejs/utils/validators/index')
-const { invalidGameIdError } = require('../opt/nodejs/utils/errors/general')
-const { schedulePointsTransfer } = require('../opt/nodejs/connectors/sqs.connector')
-const { getPlayersConIds } = require('../opt/nodejs/models/players.model')
-const { getPendingGame } = require('../opt/nodejs/models/game.model')
-const { broadcastMessages } = require('../opt/nodejs/connectors/apigateway.connector')
+const { isValidGameId } = require(layerPath + 'utils/validators/index')
+const { invalidGameIdError } = require(layerPath + 'utils/errors/general')
+const { schedulePointsTransfer } = require(layerPath + 'connectors/sqs.connector')
+const { getPlayersConIds } = require(layerPath + 'models/players.model')
+const { getPendingGame } = require(layerPath + 'models/game.model')
+const { broadcastMessages } = require(layerPath + 'connectors/apigateway.connector')
 
 
 const failedToProcessResultError = () => new Error("FAILED_TO_PROCESS_RESULT")
@@ -228,5 +228,10 @@ module.exports = {
     calculateNumberOfCorrectAnswers,
     mapCorrectAnswersToQuestion,
     processResultSafe,
-    processResult: processResultSafe(getPendingGame, broadcastMessages, getPlayersConIds, schedulePointsTransfer, Object.keys)
+    processResult: processResultSafe(
+        getPendingGame(process.env.DYNAMODB_GAMES_TABLE), 
+        broadcastMessages({ endpoint: process.env.WEBSOCKET_API_ENDPOINT }), 
+        getPlayersConIds(process.env.MONGO_DB_URI), 
+        schedulePointsTransfer(process.env.PENDING_POINTS_TRANSFERS_QUE_URL), 
+        Object.keys)
 }

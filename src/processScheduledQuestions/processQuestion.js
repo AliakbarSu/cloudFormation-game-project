@@ -64,5 +64,9 @@ module.exports = {
     processQuestionSafe,
     convertQuestionsObjectToArrayForm,
     getUnfetchedQuestions,
-    processQuestion: processQuestionSafe(getPendingGame, scheduleNextQuestion, scheduleResult, Object.keys)
+    processQuestion: processQuestionSafe(
+        getPendingGame(process.env.DYNAMODB_GAMES_TABLE), 
+        scheduleNextQuestion(process.env.SCHEDULED_QUESTIONS_QUE_URL), 
+        scheduleResult(process.env.SCHEDULE_RESULTS_PROCESS_QUE_URL), 
+        Object.keys)
 }

@@ -425,20 +425,20 @@ module.exports = {
     getPlayersPointsSafe,
     markPlayersAsPlayingSafe,
     updatePlayersLocationSafe,
-    registerConnectionIdSafe,
+    registerConnectionIdSafe, 
     deregisterConnectionIdSafe,
     searchForPlayersSafe,
-    createPlayer: createPlayerSafe(getConnection()),
-    findUserByEmail: findUserByEmailSafe(getConnection()),
-    findUserById: findUserByIdSafe(getConnection(), mongoose.Types.ObjectId),
-    findUserByConId: findUserByConIdSafe(getConnection()),
-    getPlayersConIds: getPlayersConIdsSafe(getConnection(), mongoose.Types.ObjectId),
-    getPlayersPoints: getPlayersPointsSafe(getConnection(), mongoose.Types.ObjectId),
-    markPlayersAsPlaying: markPlayersAsPlayingSafe(getConnection(), mongoose.Types.ObjectId),
-    updatePlayersLocation:  updatePlayersLocationSafe(getConnection()),
-    registerConnectionId: registerConnectionIdSafe(getConnection()),
-    deregisterConnectionId: deregisterConnectionIdSafe(getConnection()),
-    searchForPlayers: searchForPlayersSafe(getConnection(), mongoose.Types.ObjectId)
+    createPlayer: (MONGO_DB_URI) => createPlayerSafe(getConnection(MONGO_DB_URI)),
+    findUserByEmail: (MONGO_DB_URI) => findUserByEmailSafe(getConnection(MONGO_DB_URI)),
+    findUserById: (MONGO_DB_URI) => findUserByIdSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId),
+    findUserByConId: (MONGO_DB_URI) => findUserByConIdSafe(getConnection(MONGO_DB_URI)),
+    getPlayersConIds: (MONGO_DB_URI) => getPlayersConIdsSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId),
+    getPlayersPoints: (MONGO_DB_URI) => getPlayersPointsSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId),
+    markPlayersAsPlaying: (MONGO_DB_URI) => markPlayersAsPlayingSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId),
+    updatePlayersLocation:  (MONGO_DB_URI) => updatePlayersLocationSafe(getConnection(MONGO_DB_URI)),
+    registerConnectionId: (MONGO_DB_URI) => registerConnectionIdSafe(getConnection(MONGO_DB_URI)),
+    deregisterConnectionId: (MONGO_DB_URI) => deregisterConnectionIdSafe(getConnection(MONGO_DB_URI)),
+    searchForPlayers: (MONGO_DB_URI) => searchForPlayersSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId)
 }
 
 

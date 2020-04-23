@@ -218,7 +218,7 @@ const authenticate = curry((
                 failed(error)
             }
         })
-    })
+    }) 
     
 })
 

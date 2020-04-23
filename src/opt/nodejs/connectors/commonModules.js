@@ -1,1 +1,0 @@
-exports.AWS = require('aws-sdk')

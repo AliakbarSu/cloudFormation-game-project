@@ -46,7 +46,7 @@ const handlerSafe = curry(async (updatePlayersLocation, event, context) => {
 module.exports = {
     failedToUpdatePlayersLocationError,
     handlerSafe,
-    handler: handlerSafe(updatePlayersLocation())
+    handler: handlerSafe(updatePlayersLocation(process.env.MONGO_DB_URI))
 }
 
 

@@ -45,5 +45,8 @@ const acceptRequestHandler = curry(async (acceptRequest, parseToken, convertSubT
 
 module.exports = {
     acceptRequestHandler,
-    handler: acceptRequestHandler(acceptRequest, parseToken, convertSubToUid)
+    handler: acceptRequestHandler(
+        acceptRequest(process.env.DYNAMODB_REQUESTS_TABLE, new Date().getTime()), 
+        parseToken, 
+        convertSubToUid)
 }

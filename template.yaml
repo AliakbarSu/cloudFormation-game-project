@@ -9,10 +9,105 @@ Parameters:
     Default: production
 Resources:
 
-
-
   #######################
-  # API GATEWAY
+  # API GATEWAY REST
+  #######################
+  ClickCollectRestApi:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Name: "Click&Collect REST API"
+      Description: "handle all non-websocket routes"
+
+  ClickCollectRestApiSignUpMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      AuthorizationType: "NONE"
+      HttpMethod: "POST"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+          - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+          - lambdaArn: !GetAtt "signUp.Arn"
+      ResourceId: !GetAtt "ClickCollectRestApi.RootResourceId"
+      RestApiId: !Ref "ClickCollectRestApi"
+
+  ClickCollectRestApiDeployment:
+    Type: "AWS::ApiGateway::Deployment"
+    DependsOn:
+      - "ClickCollectRestApiSignUpMethod"
+    Properties:
+      RestApiId: !Ref "ClickCollectRestApi"
+      StageName: "prod"
+
+  signUp:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      CodeUri: ./src/cognitoSignUp
+      Description: "Sign user up by creating a new record in the cognito user pool"
+      FunctionName: "cognitoSignUp"
+      Handler: "index.handler"
+      MemorySize: 128
+      Role: !GetAtt "lambdaIAMRole.Arn"
+      Runtime: nodejs12.x
+      Timeout: 10
+      Environment:
+        Variables:
+          USER_POOL_ID: placeholder
+          USER_POOL_CLIENT_ID: placeholder
+
+  lambdaApiGatewayInvoke:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt "signUp.Arn"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectRestApi}/*/POST/"
+
+  signUpRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${signUp.Name}:*"
+          PolicyName: "AWSLambdaBasicExecutionRole"
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "cognito-identity:GetOpenIdTokenForDeveloperIdentity"
+                  - "cognito-identity:LookupDeveloperIdentity"
+                  - "cognito-identity:MergeDeveloperIdentities"
+                  - "cognito-identity:UnlinkDeveloperIdentity"
+                Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${signUp.Name}:*"
+          PolicyName: "AmazonCognitoDeveloperAuthenticatedIdentities"
+  signUpGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${signUp.Name}"
+      RetentionInDays: 90
+  
+  #######################
+  # API GATEWAY WEBSOCKET
   #######################
   ApiGwAccountConfig:
     DependsOn:
@@ -297,8 +392,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          API_GATEWAY_REGION: us-east-1
-          DYNAMODB_REQUESTS_TABLE: requests
+          MONGO_DB_URI: placeholder
           # MongoDBAtlasStack.Outputs.MongoDbURL
   WebSocketRouteDisconnect:
     Type: AWS::Serverless::Function
@@ -316,9 +410,25 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          API_GATEWAY_REGION: us-east-1
-          DYNAMODB_REQUESTS_TABLE: requests
+          MONGO_DB_URI: placeholder
           # MongoDBAtlasStack.Outputs.MongoDbURL
+  CognitoInitializePlayer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cognitoInitializePlayer
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/initializePlayer
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt MatchPlayersRole.Arn
+      Environment:
+        Variables:
+          MONGO_DB_URI: placeholder
   WebSocketRouteUpdateLocation:
     Type: AWS::Serverless::Function
     Properties:
@@ -333,9 +443,9 @@ Resources:
       Timeout: 3
       MemorySize: 128
       Role: !GetAtt MatchPlayersRole.Arn
-      # Environment:
-      #   Variables:
-          # MongoDBAtlasStack.Outputs.MongoDbURL
+      Environment:
+        Variables:
+          MONGO_DB_URI: placeholder
   WebSocketRouteAcceptRequest:
     Type: AWS::Serverless::Function
     Properties:
@@ -350,9 +460,9 @@ Resources:
       Timeout: 3
       MemorySize: 128
       Role: !GetAtt MatchPlayersRole.Arn
-      # Environment:
-      #   Variables:
-          # MongoDBAtlasStack.Outputs.MongoDbURL
+      Environment:
+        Variables:
+          DYNAMODB_REQUESTS_TABLE: placeholder
   WebSocketRouteRejectRequest:
     Type: AWS::Serverless::Function
     Properties:
@@ -367,9 +477,9 @@ Resources:
       Timeout: 3
       MemorySize: 128
       Role: !GetAtt MatchPlayersRole.Arn
-      # Environment:
-      #   Variables:
-          # MongoDBAtlasStack.Outputs.MongoDbURL
+      Environment:
+        Variables:
+          DYNAMODB_REQUESTS_TABLE: placeholder
   WebSocketRouteSubmitAnswers:
     Type: AWS::Serverless::Function
     Properties:
@@ -384,9 +494,10 @@ Resources:
       Timeout: 3
       MemorySize: 128
       Role: !GetAtt MatchPlayersRole.Arn
-      # Environment:
-        # Variables:
-          # MongoDBAtlasStack.Outputs.MongoDbURL
+      Environment:
+        Variables:
+          MONGO_DB_URI: placeholder
+          DYNAMODB_GAMES_TABLE: placeholder
   LambdaCognitoAuthorizer:
     Type: AWS::Serverless::Function
     Properties:
@@ -403,9 +514,25 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          COGNITO_USER_POOL: "us-east-1_5i9hLQyTN"
-          COGNITO_USER_POOL_CLIENT: "gdvig07kj34c7lttk57ccgebc" 
-          KEYS_URL: "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_5i9hLQyTN/.well-known/jwks.json"
+          KEYS_URL: "https://cognito-idp.us-east-1.amazonaws.com/placeholder-user-pool/.well-known/jwks.json"
+  
+  LambdaCognitoAuthenticator:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: LambdaCognitoAuthenticator
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/cognitoAuthenticator
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt MatchPlayersRole.Arn
+      Environment:
+        Variables:
+          USER_POOL_ID: placeholder 
   matchPlayers:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -424,11 +551,10 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          API_GATEWAY_REGION: us-east-1
           DYNAMODB_REQUESTS_TABLE: requests
-          # MongoDBAtlasStack.Outputs.MongoDbURL
-          PLAYERS_DISTANCE: 100
-          SQS_PENDINGREQUESTS_URL: !Ref PendingRequestsQue
+          MONGO_DB_URI: placeholder
+          MAX_DISTANCE: 100
+          SQS_REQUEST_QUE_URL: !Ref PendingRequestsQue
           WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
   acceptRequest:
     Type: AWS::Serverless::Function
@@ -463,7 +589,116 @@ Resources:
       #       Pattern:   
       #         account: 
       #           - !Ref "AWS::AccountId"
- 
+
+  ProcessPendingGames:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processPendingGames
+      Handler: processPendingGames.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/processPendingGames
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt MatchPlayersRole.Arn
+      Environment:
+        Variables:
+          DYNAMODB_GAMES_TABLE: placeholder
+          MONGO_DB_URI: placeholder
+          SCHEDULED_QUESTIONS_QUE_URL: placeholder
+          WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
+
+  ProcessPendingRequest:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processPendingRequests
+      Handler: processPendingRequests.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/processPendingRequests
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt MatchPlayersRole.Arn
+      Environment:
+        Variables:
+          QUESTIONS_LIMIT: 5
+          DYNAMODB_GAMES_TABLE: placeholder
+          DYNAMODB_REQUESTS_TABLE: placeholder
+
+  ProcessPointsTransfer:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processPointsTransfer
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/processPointsTransfer
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt MatchPlayersRole.Arn
+      Environment:
+        Variables:
+          MONGO_DB_URI: placeholder
+
+  ProcessResults:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processResults
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/processResults
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt MatchPlayersRole.Arn
+      Environment:
+        Variables:
+          DYNAMODB_GAMES_TABLE: placeholder
+          MONGO_DB_URI: placeholder
+          PENDING_POINTS_TRANSFERS_QUE_URL: placeholder
+          WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
+
+  ProcessScheduledQuestions:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - FetchLambdaCodeFromS3
+    Properties:
+      FunctionName: processScheduledQuestions
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/processScheduledQuestions
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt MatchPlayersRole.Arn
+      Environment:
+        Variables:
+          DYNAMODB_GAMES_TABLE: placeholder
+          SCHEDULED_QUESTIONS_QUE_URL: placeholder
+          SCHEDULE_RESULTS_PROCESS_QUE_URL: placeholder
   #######################
   # FUNCTION LAYERS
   #######################
@@ -626,6 +861,10 @@ Resources:
               - s3:GetObject
               - s3:GetObjectACL
             Resource: 'arn:aws:s3:::ali-serverless-architecture/*'
+
+Outputs:
+  ClickCollectRestApiInvokeURL:
+      Value: !Sub "https://${ClickCollectRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectRestApiStageName}"
   
 
 

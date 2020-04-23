@@ -261,7 +261,7 @@ module.exports = {
     failedToGetCurrentTimeError,
     failedToGenerateIdError,
     failedToCreateGameError,
-    failedToSubmitAnswersError,
+    failedToSubmitAnswersError, 
     invalidFiltersDataError,
     markQuestionAsFetchedSafe,
     getPendingGameSafe,
