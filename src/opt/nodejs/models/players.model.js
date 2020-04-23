@@ -1,5 +1,6 @@
 const { curry, get } = require('lodash/fp')
 const { getConnection } = require('../connectors/mongodb.connector')
+const schema = require('../schemas/players.schema')
 const mongoose = require('mongoose')
 const {
     isValidPid,
@@ -66,7 +67,7 @@ const convertIdsToObjectIds = curry((converter, ids) => {
 })
 
 
-const createPlayerSafe = curry(async (connection, sub, email) => {
+const createPlayerSafe = curry(async (connection, schema, sub, email) => {
     try {
         if(!isValidSub(sub))
         return Promise.reject(invalidSubError())
@@ -74,12 +75,11 @@ const createPlayerSafe = curry(async (connection, sub, email) => {
         if(!isValidEmail(email))
             return Promise.reject(invalidEmail())
         
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
 
-        model = model()
-        
         return model.create({
             _id: sub, 
             email: email
@@ -95,16 +95,15 @@ const createPlayerSafe = curry(async (connection, sub, email) => {
 })
 
 
-const findUserByEmailSafe = curry(async (connection, email) => {
+const findUserByEmailSafe = curry(async (connection, schema, email) => {
     try {
         if(!isValidEmail(email))
         return Promise.reject(invalidEmail())
         
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
         
         return model.findOne({email}).catch(err => {
             console.log(err)
@@ -116,16 +115,15 @@ const findUserByEmailSafe = curry(async (connection, email) => {
     }
 })
 
-const findUserByConIdSafe = curry(async (connection, connectionId) => {
+const findUserByConIdSafe = curry(async (connection, schema, connectionId) => {
     try {
         if(!isValidConnectionId(connectionId))
         return Promise.reject(invalidConnectionIdError())
         
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
         
         return model.findOne({connectionId}).catch(err => {
             console.log(err)
@@ -137,16 +135,15 @@ const findUserByConIdSafe = curry(async (connection, connectionId) => {
     }
 })
 
-const findUserByIdSafe = curry(async (connection, idConverter, pid) => {
+const findUserByIdSafe = curry(async (connection, idConverter, schema, pid) => {
     try {
         if(!isValidPid(pid))
         return Promise.reject(invalidPidError())
         
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
 
         const objectId = await convertIdToObjectId(idConverter, pid)
         
@@ -162,16 +159,15 @@ const findUserByIdSafe = curry(async (connection, idConverter, pid) => {
 })
 
 
-const getPlayersConIdsSafe = curry(async (connection, idConverter, playerIds) => {
+const getPlayersConIdsSafe = curry(async (connection, idConverter, schema, playerIds) => {
     try {
         if(!isValidPlayerIds(playerIds))
         return Promise.reject(invalidPlayerIdsError())
     
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
 
         const objectIds = await convertIdsToObjectIds(idConverter, playerIds)
 
@@ -187,16 +183,15 @@ const getPlayersConIdsSafe = curry(async (connection, idConverter, playerIds) =>
     }
 })
 
-const getPlayersPointsSafe = curry(async (connection, idConverter, playerIds) => {
+const getPlayersPointsSafe = curry(async (connection, idConverter, schema, playerIds) => {
     try {
         if(!isValidPlayerIds(playerIds))
         return Promise.reject(invalidPlayerIdsError())
     
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
 
         const objectIds = await convertIdsToObjectIds(idConverter, playerIds)
 
@@ -212,16 +207,15 @@ const getPlayersPointsSafe = curry(async (connection, idConverter, playerIds) =>
     }
 })
 
-const markPlayersAsPlayingSafe = curry(async (connection, idConverter, playerIds) => {
+const markPlayersAsPlayingSafe = curry(async (connection, idConverter, schema, playerIds) => {
     try {
         if(!isValidPlayerIds(playerIds))
         return Promise.reject(invalidPlayerIdsError())
     
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
 
         const objectIds = await convertIdsToObjectIds(idConverter, playerIds)
         return model.updateMany({ _id: {$in: objectIds }}, { status: "PLAYING" })
@@ -235,7 +229,7 @@ const markPlayersAsPlayingSafe = curry(async (connection, idConverter, playerIds
     }
 })
 
-const updatePlayersLocationSafe = curry(async (connection, connectionId, latitude, longitude) => {
+const updatePlayersLocationSafe = curry(async (connection, schema, connectionId, latitude, longitude) => {
     try {
         if(!isValidConnectionId(connectionId))
             return Promise.reject(invalidConnectionIdError())
@@ -247,11 +241,10 @@ const updatePlayersLocationSafe = curry(async (connection, connectionId, latitud
             return Promise.reject(invalidLongitudeError())
 
         
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
 
         const conditions = {
             connectionId: connectionId,
@@ -276,7 +269,7 @@ const updatePlayersLocationSafe = curry(async (connection, connectionId, latitud
 
 
 
-const registerConnectionIdSafe = curry(async (connection, connectionId, email) => {
+const registerConnectionIdSafe = curry(async (connection, schema, connectionId, email) => {
     try {
 
         if(!isValidConnectionId(connectionId))
@@ -286,11 +279,10 @@ const registerConnectionIdSafe = curry(async (connection, connectionId, email) =
             return Promise.reject(invalidEmail())
 
         
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
         
         const payload = {
             connectionId,
@@ -308,18 +300,17 @@ const registerConnectionIdSafe = curry(async (connection, connectionId, email) =
 })
 
 
-const deregisterConnectionIdSafe = curry(async (connection, connectionId) => {
+const deregisterConnectionIdSafe = curry(async (connection, schema, connectionId) => {
     try {
 
         if(!isValidConnectionId(connectionId))
             return Promise.reject(invalidConnectionIdError())
 
         
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
 
         const payload = {
             online: false, 
@@ -337,7 +328,7 @@ const deregisterConnectionIdSafe = curry(async (connection, connectionId) => {
 })
 
 
-const searchForPlayersSafe = curry(async (connection, idConverter, _id, latitude, longitude, language, category, level, maxDistance) => {
+const searchForPlayersSafe = curry(async (connection, idConverter, schema, _id, latitude, longitude, language, category, level, maxDistance) => {
     try {
 
         if(!isValidLatitude(latitude))
@@ -361,11 +352,10 @@ const searchForPlayersSafe = curry(async (connection, idConverter, _id, latitude
         if(!isValidNumber(maxDistance))
             return Promise.reject(invalidNumberError())
         
-        let model = get("model", connection)
+        const resolvedConnection = await connection
+        const model = resolvedConnection.model("players", schema)
         if(!model)
             return Promise.reject(invalidModelError())
-
-        model = model()
 
        
         const objectId = await convertIdToObjectId(idConverter, _id)
@@ -428,19 +418,25 @@ module.exports = {
     registerConnectionIdSafe, 
     deregisterConnectionIdSafe,
     searchForPlayersSafe,
-    createPlayer: (MONGO_DB_URI) => createPlayerSafe(getConnection(MONGO_DB_URI)),
-    findUserByEmail: (MONGO_DB_URI) => findUserByEmailSafe(getConnection(MONGO_DB_URI)),
-    findUserById: (MONGO_DB_URI) => findUserByIdSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId),
+    createPlayer: (MONGO_DB_URI) => createPlayerSafe(getConnection(MONGO_DB_URI), schema),
+    findUserByEmail: (MONGO_DB_URI) => findUserByEmailSafe(getConnection(MONGO_DB_URI), schema),
+    findUserById: (MONGO_DB_URI) => findUserByIdSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId, schema),
     findUserByConId: (MONGO_DB_URI) => findUserByConIdSafe(getConnection(MONGO_DB_URI)),
-    getPlayersConIds: (MONGO_DB_URI) => getPlayersConIdsSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId),
-    getPlayersPoints: (MONGO_DB_URI) => getPlayersPointsSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId),
-    markPlayersAsPlaying: (MONGO_DB_URI) => markPlayersAsPlayingSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId),
-    updatePlayersLocation:  (MONGO_DB_URI) => updatePlayersLocationSafe(getConnection(MONGO_DB_URI)),
-    registerConnectionId: (MONGO_DB_URI) => registerConnectionIdSafe(getConnection(MONGO_DB_URI)),
-    deregisterConnectionId: (MONGO_DB_URI) => deregisterConnectionIdSafe(getConnection(MONGO_DB_URI)),
-    searchForPlayers: (MONGO_DB_URI) => searchForPlayersSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId)
+    getPlayersConIds: (MONGO_DB_URI) => getPlayersConIdsSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId, schema),
+    getPlayersPoints: (MONGO_DB_URI) => getPlayersPointsSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId, schema),
+    markPlayersAsPlaying: (MONGO_DB_URI) => markPlayersAsPlayingSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId, schema),
+    updatePlayersLocation:  (MONGO_DB_URI) => updatePlayersLocationSafe(getConnection(MONGO_DB_URI), schema),
+    registerConnectionId: (MONGO_DB_URI) => registerConnectionIdSafe(getConnection(MONGO_DB_URI), schema),
+    deregisterConnectionId: (MONGO_DB_URI) => deregisterConnectionIdSafe(getConnection(MONGO_DB_URI), schema),
+    searchForPlayers: (MONGO_DB_URI) => searchForPlayersSafe(getConnection(MONGO_DB_URI), mongoose.Types.ObjectId, schema)
 }
 
+
+// createPlayerSafe(getConnection("mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority"), schema, "jlajfsjajflq", "aliakbar.su@gmail.com").then(data => {
+//     console.log(data)
+// }).catch(err => {
+//     console.log(err)
+// })
 
 
 // class PlayersModel {

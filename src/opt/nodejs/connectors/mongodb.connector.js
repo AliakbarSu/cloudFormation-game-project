@@ -23,8 +23,7 @@ const createConnectionObject = curry((bufferCommands, bufferMaxEntries) => ({
 
 const createConnection = curry(async (createConnection, URI, connectionObject) => {
     try {
-        const connection = await createConnection(URI, connectionObject)
-        return connection
+        return createConnection(URI, connectionObject)
     }catch(err) {
         console.log(err)
         return Promise.reject(failedToCreateMongoDBConnectionError())
@@ -34,7 +33,7 @@ const createConnection = curry(async (createConnection, URI, connectionObject) =
 let currentConnection = null
 
 
-const getConnectionSafe = curry((currentConnection, createConn, bufferCommands, bufferMaxEntries, URI) => {
+const getConnectionSafe = curry(async (currentConnection, createConn, bufferCommands, bufferMaxEntries, URI) => {
 
     if(!validateConnectionString(URI)) {
         return Promise.reject(invalidMongoDbURIConStringError())
@@ -49,7 +48,7 @@ const getConnectionSafe = curry((currentConnection, createConn, bufferCommands, 
     const connectionObject = createConnectionObject(bufferCommands, bufferMaxEntries)
 
     if (!currentConnection) {
-        return createConnection(createConn, URI, connectionObject)
+        return await createConnection(createConn, URI, connectionObject)
     }
     return Promise.resolve(currentConnection)
 })
@@ -70,8 +69,10 @@ module.exports = {
     getConnectionSafe,
     getConnection: (URI) => {
         if(currentConnection == null) {
-            currentConnection = getConnectionSafe(currentConnection, mongoose.createConnection, URI)
+            currentConnection = getConnectionSafe(currentConnection, mongoose.createConnection, false, 0, URI)
+            return currentConnection
+        }else {
+            return getConnectionSafe(currentConnection, mongoose.createConnection, false, 0, URI)
         }
-        return getConnectionSafe(currentConnection, mongoose.createConnection, URI)
     }
 }

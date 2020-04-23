@@ -50,7 +50,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./src/cognitoSignUp
-      Description: "Sign user up by creating a new record in the cognito user pool"
+      Description: "Sign user up by creating a new record in the cognito user pool.."
       FunctionName: "cognitoSignUp"
       Handler: "index.handler"
       MemorySize: 128
@@ -62,8 +62,8 @@ Resources:
       # Tracing: Active
       Environment:
         Variables:
-          USER_POOL_ID: ClickCollectCognitoUserPool
-          USER_POOL_CLIENT_ID: ClickCollectCognitoUserPoolClient
+          USER_POOL_ID: !Ref ClickCollectCognitoUserPool
+          USER_POOL_CLIENT_ID: !Ref ClickCollectCognitoUserPoolClient
 
   lambdaApiGatewayInvoke: 
     Type: "AWS::Lambda::Permission"
@@ -106,8 +106,7 @@ Resources:
                   - "cognito-identity:MergeDeveloperIdentities"
                   - "cognito-identity:UnlinkDeveloperIdentity"
                 Effect: "Allow"
-                Resource:
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/cognitoSignUp:*"
+                Resource: "*"
           PolicyName: "AmazonCognitoDeveloperAuthenticatedIdentities"
   signUpGroup:
     Type: "AWS::Logs::LogGroup"
@@ -378,6 +377,8 @@ Resources:
       #     EmailSubject: "Thankyou letter"
       AutoVerifiedAttributes: 
         - email
+      AliasAttributes:
+        - email
       # EmailVerificationMessage: "Please verify your email address by clicking on the provided link"
       # EmailVerificationSubject: "ClickCollect Email Verification"
       LambdaConfig: 
@@ -389,8 +390,6 @@ Resources:
           RequireNumbers: true
           RequireSymbols: false
           RequireUppercase: true
-      UsernameAttributes: 
-        - email
       UsernameConfiguration: 
         CaseSensitive: true
       UserPoolName: click
@@ -545,7 +544,7 @@ Resources:
         Variables:
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
           # MongoDBAtlasStack.Outputs.MongoDbURL
-  CognitoInitializePlayer:
+  CognitoInitializePlayer: 
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: cognitoInitializePlayer
@@ -562,6 +561,13 @@ Resources:
       Environment:
         Variables:
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+  LambdaCognitoInitializePlayerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CognitoInitializePlayer
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt ClickCollectCognitoUserPool.Arn
   WebSocketRouteUpdateLocation:
     Type: AWS::Serverless::Function
     Properties:
@@ -647,7 +653,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          KEYS_URL: "https://cognito-idp.us-east-1.amazonaws.com/ClickCollectCognitoUserPool/.well-known/jwks.json"
+          KEYS_URL: !Sub "https://cognito-idp.us-east-1.amazonaws.com/${ClickCollectCognitoUserPool}/.well-known/jwks.json"
   
   LambdaCognitoAuthenticator:
     Type: AWS::Serverless::Function
@@ -665,7 +671,7 @@ Resources:
       Role: !GetAtt MatchPlayersRole.Arn
       Environment:
         Variables:
-          USER_POOL_ID: ClickCollectCognitoUserPool
+          USER_POOL_ID: !Ref ClickCollectCognitoUserPool
   matchPlayers:
     Type: AWS::Serverless::Function
     DependsOn:

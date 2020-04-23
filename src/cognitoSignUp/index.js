@@ -1,6 +1,7 @@
 let layerPath = process.env['DEV'] ? "../opt/nodejs/" : "/opt/nodejs/"
 const { curry, get } = require('lodash/fp')
 const AmazonCognitoIdentity = require('amazon-cognito-identity-js')
+global.fetch = require('node-fetch')
 
 const {
     isValidUserPool,
@@ -53,9 +54,9 @@ const successResponseObject = curry((username) => ({
 }))
 
 
-const signUpUser = curry((signUp, email, password, attributes) => {
+const signUpUser = curry((signUp, username, password, attributes) => {
     return new Promise((success, failed) => {
-        signUp(email, password, attributes, null, (err, data) => {
+        signUp.signUp(username, password, attributes, null, (err, data) => {
             if(err) {
                 console.log(err)
                 failed(encounteredErrorWhileCallingSignUpMethod())
@@ -67,15 +68,16 @@ const signUpUser = curry((signUp, email, password, attributes) => {
 
 
 const handlerSafe = curry(async (getCognitoUserPool, getCognitoUserAttributes, userPoolId, clientId, event, context) => {
+    context.callbackWaitsForEmptyEventLoop = false
 
     if(!isValidUserPool(userPoolId)) {
         console.log(invalidUserPoolError())
-        return Promise.reject(failedToSignUpUserInternalError(context))
+        return Promise.reject(failedToSignUpUserInternalError(context).message)
     }
         
     if(!isValidClientId(clientId)) {
         console.log(invalidClientIdError())
-        return Promise.reject(failedToSignUpUserInternalError(context))
+        return Promise.reject(failedToSignUpUserInternalError(context).message)
     }
 
     const email = get("email", event)
@@ -83,39 +85,32 @@ const handlerSafe = curry(async (getCognitoUserPool, getCognitoUserAttributes, u
     const password = get("password", event)
 
     if(!isValidEmail(email))
-        return Promise.reject(failedToSignUpUserInputsError(context, invalidEmail().message))
+        return Promise.reject(failedToSignUpUserInputsError(context, invalidEmail().message).message)
 
     if(!isValidSignUpUsername(username))
-        return Promise.reject(failedToSignUpUserInputsError(context, invalidSignUpUsernameError().message))
+        return Promise.reject(failedToSignUpUserInputsError(context, invalidSignUpUsernameError().message).message)
         
     if(!isValidPassword(password))
-        return Promise.reject(failedToSignUpUserInputsError(context, invalidPasswordError().message))
+        return Promise.reject(failedToSignUpUserInputsError(context, invalidPasswordError().message).message)
 
     try {
     
         const userData = constructPoolDataObject(userPoolId, clientId)
         const cognitoUserPool = getCognitoUserPool(userData)
-        const signUp = get("signUp", cognitoUserPool)
-
-        if(!signUp) {
-            console.log(failedToGetSignUpMethodError())
-            return Promise.reject(failedToSignUpUserInternalError(context))
-        }
 
         const userAttributesList = [
-            constructUserAttributeObject("email", email),
-            constructUserAttributeObject("username", username)
+            constructUserAttributeObject("email", email)
         ]
 
         const mapedUserAttributesList = userAttributesList.map(attribute => getCognitoUserAttributes(attribute))
-        const {user} = await signUpUser(signUp, email, password, mapedUserAttributesList)
-        const createUser = user()
+        const {user} = await signUpUser(cognitoUserPool, username, password, mapedUserAttributesList)
+        const createUser = user.getUsername()
 
         return Promise.resolve(successResponseObject(createUser))
 
     }catch(err) {
         console.log(err)
-        return Promise.reject(failedToSignUpUserInternalError(context))
+        return Promise.reject(failedToSignUpUserInternalError(context).message)
     }
 
 })

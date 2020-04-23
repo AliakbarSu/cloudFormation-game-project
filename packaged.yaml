@@ -52,8 +52,8 @@ Resources:
   signUp:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://ali-su-artifacts/cad731a28bd46b469f387dc73d132917
-      Description: Sign user up by creating a new record in the cognito user pool
+      CodeUri: s3://ali-su-artifacts/8db4dfb19f36279f5db50ac0a3884ea8
+      Description: Sign user up by creating a new record in the cognito user pool..
       FunctionName: cognitoSignUp
       Handler: index.handler
       MemorySize: 128
@@ -67,8 +67,10 @@ Resources:
       - Ref: serverlessLayer
       Environment:
         Variables:
-          USER_POOL_ID: ClickCollectCognitoUserPool
-          USER_POOL_CLIENT_ID: ClickCollectCognitoUserPoolClient
+          USER_POOL_ID:
+            Ref: ClickCollectCognitoUserPool
+          USER_POOL_CLIENT_ID:
+            Ref: ClickCollectCognitoUserPoolClient
   lambdaApiGatewayInvoke:
     Type: AWS::Lambda::Permission
     Properties:
@@ -113,8 +115,7 @@ Resources:
             - cognito-identity:MergeDeveloperIdentities
             - cognito-identity:UnlinkDeveloperIdentity
             Effect: Allow
-            Resource:
-            - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/cognitoSignUp:*
+            Resource: '*'
         PolicyName: AmazonCognitoDeveloperAuthenticatedIdentities
   signUpGroup:
     Type: AWS::Logs::LogGroup
@@ -363,6 +364,8 @@ Resources:
           Priority: 1
       AutoVerifiedAttributes:
       - email
+      AliasAttributes:
+      - email
       LambdaConfig:
         PostConfirmation:
           Fn::GetAtt:
@@ -375,8 +378,6 @@ Resources:
           RequireNumbers: true
           RequireSymbols: false
           RequireUppercase: true
-      UsernameAttributes:
-      - email
       UsernameConfiguration:
         CaseSensitive: true
       UserPoolName: click
@@ -514,6 +515,17 @@ Resources:
       Environment:
         Variables:
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+  LambdaCognitoInitializePlayerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: CognitoInitializePlayer
+      Principal: cognito-idp.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - ClickCollectCognitoUserPool
+        - Arn
   WebSocketRouteUpdateLocation:
     Type: AWS::Serverless::Function
     Properties:
@@ -607,7 +619,8 @@ Resources:
         - Arn
       Environment:
         Variables:
-          KEYS_URL: https://cognito-idp.us-east-1.amazonaws.com/ClickCollectCognitoUserPool/.well-known/jwks.json
+          KEYS_URL:
+            Fn::Sub: https://cognito-idp.us-east-1.amazonaws.com/${ClickCollectCognitoUserPool}/.well-known/jwks.json
   LambdaCognitoAuthenticator:
     Type: AWS::Serverless::Function
     Properties:
@@ -625,7 +638,8 @@ Resources:
         - Arn
       Environment:
         Variables:
-          USER_POOL_ID: ClickCollectCognitoUserPool
+          USER_POOL_ID:
+            Ref: ClickCollectCognitoUserPool
   matchPlayers:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -805,7 +819,7 @@ Resources:
     Properties:
       LayerName: serverlessLayer
       Description: Layer description
-      ContentUri: s3://ali-su-artifacts/f997f8042d9b7e100077f0a1653a7ba1
+      ContentUri: s3://ali-su-artifacts/8b571cd7dabaa05553d8f1b345bc2a01
       CompatibleRuntimes:
       - nodejs12.x
       - nodejs8.10
