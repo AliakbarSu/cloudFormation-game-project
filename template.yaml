@@ -23,7 +23,12 @@ Resources:
     Properties:
       Name: "Click&Collect REST API"
       Description: "handle all non-websocket routes"
-
+  SignUp:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref ClickCollectRestApi
+      PathPart: signup
+      ParentId: !GetAtt ClickCollectRestApi.RootResourceId
   ClickCollectRestApiSignUpMethod: 
     Type: "AWS::ApiGateway::Method"
     Properties:
@@ -33,85 +38,42 @@ Resources:
         IntegrationHttpMethod: "POST"
         Type: "AWS"
         Uri: !Sub
-          - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
-          - lambdaArn: !GetAtt "signUp.Arn"
-      ResourceId: !GetAtt "ClickCollectRestApi.RootResourceId"
+              - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+              - { lambdaArn: !GetAtt "LambdaSignUp.Arn"}
+      ResourceId: !Ref SignUp
+      RestApiId: !Ref "ClickCollectRestApi"
+  SignIn:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref ClickCollectRestApi
+      PathPart: signin
+      ParentId: !GetAtt ClickCollectRestApi.RootResourceId
+  ClickCollectRestApiSignInMethod: 
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      AuthorizationType: "NONE"
+      HttpMethod: "POST"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+              - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+              - { lambdaArn: !GetAtt "LambdaCognitoAuthenticator.Arn" }
+      ResourceId: !Ref SignIn
       RestApiId: !Ref "ClickCollectRestApi"
 
   ClickCollectRestApiDeployment: 
     Type: "AWS::ApiGateway::Deployment"
     DependsOn:
       - "ClickCollectRestApiSignUpMethod"
+      - "ClickCollectRestApiSignInMethod"
     Properties:
       RestApiId: !Ref "ClickCollectRestApi"
       StageName: !Ref ClickCollectRestApiStageName
-
-  signUp: 
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: ./src/cognitoSignUp
-      Description: "Sign user up by creating a new record in the cognito user pool.."
-      FunctionName: "cognitoSignUp"
-      Handler: "index.handler"
-      MemorySize: 128
-      Role: !GetAtt "signUpRole.Arn"
-      Runtime: nodejs12.x
-      Timeout: 10
-      Layers:
-        - Ref: serverlessLayer
-      # Tracing: Active
-      Environment:
-        Variables:
-          USER_POOL_ID: !Ref ClickCollectCognitoUserPool
-          USER_POOL_CLIENT_ID: !Ref ClickCollectCognitoUserPoolClient
-
-  lambdaApiGatewayInvoke: 
-    Type: "AWS::Lambda::Permission"
-    Properties:
-      Action: "lambda:InvokeFunction"
-      FunctionName: !GetAtt "signUp.Arn"
-      Principal: "apigateway.amazonaws.com"
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectRestApi}/*/POST/"
-
-  signUpRole: 
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Action:
-              - "sts:AssumeRole"
-            Effect: "Allow"
-            Principal:
-              Service:
-                - "lambda.amazonaws.com"
-      Policies:
-        - PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Action:
-                  - "logs:CreateLogGroup"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
-                Effect: "Allow"
-                Resource:
-                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/cognitoSignUp:*"
-          PolicyName: "AWSLambdaBasicExecutionRole"
-        - PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Action:
-                  - "cognito-identity:GetOpenIdTokenForDeveloperIdentity"
-                  - "cognito-identity:LookupDeveloperIdentity"
-                  - "cognito-identity:MergeDeveloperIdentities"
-                  - "cognito-identity:UnlinkDeveloperIdentity"
-                Effect: "Allow"
-                Resource: "*"
-          PolicyName: "AmazonCognitoDeveloperAuthenticatedIdentities"
   signUpGroup:
     Type: "AWS::Logs::LogGroup"
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${signUp}"
+      LogGroupName: !Sub "/aws/lambda/${LambdaSignUp}"
       RetentionInDays: 90
   
   #######################
@@ -187,7 +149,17 @@ Resources:
       ApiId: !Ref ClickCollectWebsocket
       Description: Integration for builtin $connect route
       IntegrationType: AWS
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteConnect.Arn}/invocations
+      IntegrationUri: !Sub 
+                        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Function}/invocations
+                        - {Function: !GetAtt WebSocketRouteConnect.Arn}
+      TemplateSelectionExpression: '200'
+      RequestTemplates:
+        '200': >
+          {
+              "userEmail": "$context.authorizer.userEmail",
+              "connectionId": "$context.connectionId",
+              "connectionType": "$context.connectionType"
+          }
   # DISCONNECT ROUTE.
   ClickCollectDisconnectRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -204,7 +176,17 @@ Resources:
       ApiId: !Ref ClickCollectWebsocket
       Description: Integration for builtin $disconnect route
       IntegrationType: AWS
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteDisconnect.Arn}/invocations
+      IntegrationUri: !Sub 
+                        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Function}/invocations
+                        - { Function: !GetAtt WebSocketRouteDisconnect.Arn}
+      TemplateSelectionExpression: '200'
+      RequestTemplates:
+        '200': >
+          {
+              "userEmail": "$context.authorizer.userEmail",
+              "connectionId": "$context.connectionId",
+              "connectionType": "$context.connectionType"
+          }
   # DEFAULT ROUTE.
   ClickCollectDefaultRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -235,8 +217,10 @@ Resources:
     Properties:
       ApiId: !Ref ClickCollectWebsocket
       Description: Pairing request integration
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteUpdateLocation.Arn}/invocations
+      IntegrationType: AWS
+      IntegrationUri: !Sub
+                        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Function}/invocations
+                        - {Function: !GetAtt LambdaWebSocketRouteUpdateLocation.Arn}
 
   # The validation model for 'pair' route messages.
   # NATPunchPairModel:
@@ -271,7 +255,20 @@ Resources:
       ApiId: !Ref ClickCollectWebsocket
       Description: Integration for custom 'status' route
       IntegrationType: AWS
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteAcceptRequest.Arn}/invocations
+      IntegrationUri: !Sub
+                        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Function}/invocations
+                        - { Function: !GetAtt WebSocketRouteAcceptRequest.Arn }
+      TemplateSelectionExpression: '200'
+      RequestTemplates:
+        '200': >
+          #set($inputRoot = $input.path('$'))
+          {
+            "connectionId" : "$context.connectionId"
+            "connectionType" : "$context.connectionType",
+            "requestId" : "$inputRoot.data.requestId",
+            "token": "$inputRoot.token"
+          }
+        
   # REQJECT_REQUEST ROUTE.
   ClickCollectRejectRequestRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -287,7 +284,19 @@ Resources:
       ApiId: !Ref ClickCollectWebsocket
       Description: Integration for custom 'status' route
       IntegrationType: AWS
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteRejectRequest.Arn}/invocations
+      IntegrationUri: !Sub
+                        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Function}/invocations
+                        - { Function: !GetAtt WebSocketRouteRejectRequest.Arn }
+      TemplateSelectionExpression: '200'
+      RequestTemplates:
+        '200': >
+          #set($inputRoot = $input.path('$'))
+          {
+            "connectionId" : "$context.connectionId"
+            "connectionType" : "$context.connectionType",
+            "requestId" : "$inputRoot.data.requestId",
+            "token": "$inputRoot.token"
+          }
   # SUBMIT_ANSWERS ROUTE.
   ClickCollectSubmitAnswersRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -303,7 +312,9 @@ Resources:
       ApiId: !Ref ClickCollectWebsocket
       Description: Integration for custom 'status' route
       IntegrationType: AWS
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketRouteSubmitAnswers.Arn}/invocations
+      IntegrationUri: !Sub
+                        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Function}/invocations
+                        - {Function: !GetAtt LambdaWebSocketRouteSubmitAnswers.Arn}
   # WEBSOCET API LAMBDA AUTHORIZER
   CognitoLambdaAuthorizer:
     Type: 'AWS::ApiGatewayV2::Authorizer'
@@ -312,7 +323,9 @@ Resources:
       ApiId: !Ref ClickCollectWebsocket
       AuthorizerType: REQUEST
       # AuthorizerCredentialsArn: 
-      AuthorizerUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaCognitoAuthorizer.Arn}/invocations
+      AuthorizerUri: !Sub
+                        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Authorizer}/invocations
+                        - {Authorizer: !GetAtt LambdaCognitoAuthorizer.Arn}
       IdentitySource:
         - route.request.querystring.Authorizer
 
@@ -331,6 +344,7 @@ Resources:
       - ClickCollectAcceptRequestRoute
     Properties:
       ApiId: !Ref ClickCollectWebsocket
+      # StageName: !Ref Stage
 
   # NATPunch websocket deployment stage descriptor; see 'deployment' above.
   ClickCollectWebSocketStage:
@@ -389,8 +403,8 @@ Resources:
           - !Ref "AWS::AccountId"
       State: "ENABLED"
       Targets: 
-        - Arn: !GetAtt matchPlayers.Arn
-          Id: matchPlayers
+        - Arn: !GetAtt LambdaMatchPlayers.Arn
+          Id: LambdaMatchPlayers
 
   #######################
   # COGNITO
@@ -470,9 +484,12 @@ Resources:
         ReadCapacityUnits: "5"
         WriteCapacityUnits: "5"
       TableName: "games"
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
 
   DynamodbQuestionsTable: 
     Type: AWS::DynamoDB::Table
+    # BillingMode: PAY_PER_REQUEST
     Properties: 
       AttributeDefinitions: 
         - 
@@ -541,6 +558,8 @@ Resources:
   #######################
   WebSocketRouteConnect:
     Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: webSocketRouteConnect
       Handler: connect.handler
@@ -552,7 +571,7 @@ Resources:
       # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt WebSocketRouteConnectRole.Arn
       Environment:
         Variables:
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
@@ -564,9 +583,23 @@ Resources:
       FunctionName: !Ref WebSocketRouteConnect
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/$connect"
+  WebSocketRouteConnectRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
 
   WebSocketRouteDisconnect:
     Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: webSocketRouteDisconnect
       Handler: disconnect.handler
@@ -578,47 +611,73 @@ Resources:
       # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt WebSocketRouteDisconnectRole.Arn
       Environment:
         Variables:
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
           # MongoDBAtlasStack.Outputs.MongoDbURL
-  ClickCollectDisconnectIntegPermission:
+  WebSocketRouteDisconnectPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref WebSocketRouteDisconnect
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/$disconnect"
+  WebSocketRouteDisconnectRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
 
   CognitoInitializePlayer: 
     Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: cognitoInitializePlayer
       Handler: index.handler
       Runtime: nodejs12.x
       CodeUri: ./src/initializePlayer
-      # ReservedConcurrentExecutions: 30
       Layers:
         - Ref: serverlessLayer
-      # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt CognitoInitializePlayerRole.Arn
       Environment:
         Variables:
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
-  LambdaCognitoInitializePlayerPermission:
+  CognitoInitializePlayerPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref CognitoInitializePlayer
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt ClickCollectCognitoUserPool.Arn
-  WebSocketRouteUpdateLocation:
+  CognitoInitializePlayerRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+  LambdaWebSocketRouteUpdateLocation:
     Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
     Properties:
-      FunctionName: webSocketRouteUpdateLocation
+      FunctionName: LambdaWebSocketRouteUpdateLocation
       Handler: index.handler
       Runtime: nodejs12.x
       CodeUri: ./src/updateLocation
@@ -628,166 +687,56 @@ Resources:
       # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt LambdaWebSocketRouteUpdateLocationRole.Arn
       Environment:
         Variables:
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
-  ClickCollectUpdateLocationIntegPermission:
+  LambdaWebSocketRouteUpdateLocationPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref WebSocketRouteUpdateLocation
+      FunctionName: !Ref LambdaWebSocketRouteUpdateLocation
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/updateLocation"
+  LambdaWebSocketRouteUpdateLocationRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/" 
 
   WebSocketRouteAcceptRequest:
     Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: webSocketRouteAcceptRequest
       Handler: index.handler
       Runtime: nodejs12.x
       CodeUri: ./src/acceptRequest
-      # ReservedConcurrentExecutions: 30
       Layers:
         - Ref: serverlessLayer
-      # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt WebSocketRouteAcceptRequestRole.Arn
       Environment:
         Variables:
           DYNAMODB_REQUESTS_TABLE: !Ref DynamodbRequestsTable
-  ClickCollectAcceptRequestPermission:
+  WebSocketRouteAcceptRequestPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref WebSocketRouteAcceptRequest
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/acceptRequest"
-  WebSocketRouteRejectRequest:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: webSocketRouteRejectRequest
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: ./src/rejectRequest
-      # ReservedConcurrentExecutions: 30
-      Layers:
-        - Ref: serverlessLayer
-      # Tracing: Active
-      Timeout: 3
-      MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
-      Environment:
-        Variables:
-          DYNAMODB_REQUESTS_TABLE: !Ref DynamodbRequestsTable
-  ClickCollectRejectRequestIntegPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref WebSocketRouteRejectRequest
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/rejectRequest"
-  WebSocketRouteSubmitAnswers:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: webSocketRouteSubmitAnswers
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: ./src/submitAnswers
-      # ReservedConcurrentExecutions: 30
-      Layers:
-        - Ref: serverlessLayer
-      # Tracing: Active
-      Timeout: 3
-      MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
-      Environment:
-        Variables:
-          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
-          DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
-  ClickCollectSubmitAnswersIntegPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref WebSocketRouteSubmitAnswers
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/submitAnswers"
-      
-  LambdaCognitoAuthorizer:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: LambdaCognitoAuthorizer
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: ./src/cognitoAuthorizer
-      # ReservedConcurrentExecutions: 30
-      Layers:
-        - Ref: serverlessLayer
-      # Tracing: Active
-      Timeout: 3
-      MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
-      Environment:
-        Variables:
-          KEYS_URL: !Sub "https://cognito-idp.us-east-1.amazonaws.com/${ClickCollectCognitoUserPool}/.well-known/jwks.json"
-  
-  LambdaCognitoAuthenticator:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: LambdaCognitoAuthenticator
-      Handler: index.handler
-      Runtime: nodejs12.x
-      CodeUri: ./src/cognitoAuthenticator
-      # ReservedConcurrentExecutions: 30
-      Layers:
-        - Ref: serverlessLayer
-      # Tracing: Active
-      Timeout: 3
-      MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
-      Environment:
-        Variables:
-          USER_POOL_ID: !Ref ClickCollectCognitoUserPool
-  LambdaCognitoAuthorizerPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref LambdaCognitoAuthorizer
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/authorizers/${CognitoLambdaAuthorizer}"
-
-  matchPlayers:
-    Type: AWS::Serverless::Function
-    DependsOn:
-      - FetchLambdaCodeFromS3
-    Properties:
-      FunctionName: matchPlayers
-      Handler: matchPlayers.handler
-      Runtime: nodejs12.x
-      CodeUri: ./src/matchPlayers
-      # ReservedConcurrentExecutions: 30
-      Layers:
-        - Ref: serverlessLayer
-      # Tracing: Active
-      Timeout: 3
-      MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
-      Environment:
-        Variables:
-          DYNAMODB_REQUESTS_TABLE: requests
-          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
-          MAX_DISTANCE: 100
-          SQS_REQUEST_QUE_URL: !Ref PendingRequestsQue
-          WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
-  LambdaMatchPlayersPermissions:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt matchPlayers.Arn
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt searchPlayersEventRule.Arn
-  MatchPlayersRole: 
+  WebSocketRouteAcceptRequestRole: 
     Type: "AWS::IAM::Role"
     Properties: 
       AssumeRolePolicyDocument: 
@@ -800,22 +749,316 @@ Resources:
             Action: 
               - "sts:AssumeRole"
       Policies:
-        - PolicyName: LambdaBasicExecutionPolicy
+        - PolicyName: DynamodbRequestsTableWriteAccess
           PolicyDocument:
             Version: "2012-10-17"
             Statement: 
               Effect: "Allow"
               Action: 
-                - logs:CreateLogGroup
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource: "*"
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DynamodbRequestsTable.Arn
       Path: "/" 
-
-  ProcessPendingGames:
+  WebSocketRouteRejectRequest:
     Type: AWS::Serverless::Function
     DependsOn:
-      - FetchLambdaCodeFromS3
+      - LambdaBasicExecutionPolicy
+    Properties:
+      FunctionName: webSocketRouteRejectRequest
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/rejectRequest
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 3
+      Role: !GetAtt WebSocketRouteRejectRequestRole.Arn
+      MemorySize: 128
+      Environment:
+        Variables:
+          DYNAMODB_REQUESTS_TABLE: !Ref DynamodbRequestsTable
+  ClickCollectRejectRequestIntegPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref WebSocketRouteRejectRequest
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/rejectRequest"
+
+  WebSocketRouteRejectRequestRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: DynamodbRequestsTableWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DynamodbRequestsTable.Arn
+      Path: "/" 
+  LambdaWebSocketRouteSubmitAnswers:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
+    Properties:
+      FunctionName: LambdaWebSocketRouteSubmitAnswers
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/submitAnswers
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt LambdaWebSocketRouteSubmitAnswersRole.Arn
+      Environment:
+        Variables:
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
+  LambdaWebSocketRouteSubmitAnswersPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaWebSocketRouteSubmitAnswers
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/*/submitAnswers"
+  LambdaWebSocketRouteSubmitAnswersRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: DynamodbGamesTableWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DynamodbGamesTable.Arn
+      Path: "/" 
+  
+  LambdaCognitoAuthorizer:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
+    Properties:
+      FunctionName: LambdaCognitoAuthorizer
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/cognitoAuthorizer
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt LambdaCognitoAuthorizerRole.Arn
+      Environment:
+        Variables:
+          KEYS_URL: !Sub "https://cognito-idp.us-east-1.amazonaws.com/${ClickCollectCognitoUserPool}/.well-known/jwks.json"
+  LambdaCognitoAuthorizerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaCognitoAuthorizer
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectWebsocket}/authorizers/${CognitoLambdaAuthorizer}"
+  LambdaCognitoAuthorizerRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/" 
+  LambdaSignUp: 
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
+    Properties:
+      CodeUri: ./src/cognitoSignUp
+      Description: "Sign user up by creating a new record in the cognito user pool.."
+      FunctionName: "cognitoSignUp"
+      Handler: "index.handler"
+      MemorySize: 128
+      Role: !GetAtt "LambdaSignUpRole.Arn"
+      Runtime: nodejs12.x
+      Timeout: 10
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref ClickCollectCognitoUserPool
+          USER_POOL_CLIENT_ID: !Ref ClickCollectCognitoUserPoolClient
+
+  LambdaSignUpPermission: 
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt "LambdaSignUp.Arn"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectRestApi}/*/POST/signup"
+
+  LambdaSignUpRole: 
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+      Policies:
+        - PolicyName: "AmazonCognitoDeveloperAuthenticatedIdentities"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "cognito-identity:GetOpenIdTokenForDeveloperIdentity"
+                  - "cognito-identity:LookupDeveloperIdentity"
+                  - "cognito-identity:MergeDeveloperIdentities"
+                  - "cognito-identity:UnlinkDeveloperIdentity"
+                Effect: "Allow"
+                Resource: "*"
+  LambdaCognitoAuthenticator:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
+    Properties:
+      FunctionName: LambdaCognitoAuthenticator
+      Handler: index.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/cognitoAuthenticator
+      # ReservedConcurrentExecutions: 30
+      Layers:
+        - Ref: serverlessLayer
+      # Tracing: Active
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt LambdaCognitoAuthenticatorRole.Arn
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref ClickCollectCognitoUserPool
+  LambdaCognitoAuthenticatorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaCognitoAuthorizer
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ClickCollectRestApi}/*/POST/login"
+      
+  LambdaCognitoAuthenticatorRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/" 
+  LambdaMatchPlayers:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
+    Properties:
+      FunctionName: LambdaMatchPlayers
+      Handler: matchPlayers.handler
+      Runtime: nodejs12.x
+      CodeUri: ./src/matchPlayers
+      Layers:
+        - Ref: serverlessLayer
+      Timeout: 3
+      MemorySize: 128
+      Role: !GetAtt LambdaMatchPlayersRole.Arn
+      Environment:
+        Variables:
+          DYNAMODB_REQUESTS_TABLE: requests
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          MAX_DISTANCE: 100
+          SQS_REQUEST_QUE_URL: !Ref PendingRequestsQue
+          WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
+  LambdaMatchPlayersPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt LambdaMatchPlayers.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt searchPlayersEventRule.Arn
+  LambdaMatchPlayersRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "AmazonSqsWriteAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "sqs:*"
+                Effect: "Allow"
+                Resource: !GetAtt PendingRequestsQue.Arn
+      Policies:
+        - PolicyName: DynamodbRequestsTableWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DynamodbRequestsTable.Arn
+      Policies:
+        - PolicyName: ApiGatewayWebsocketInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - "execute-api:Invoke"
+                - "execute-api:ManageConnections"
+              Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
+      Path: "/" 
+
+  LambdaProcessPendingGames:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: processPendingGames
       Handler: processPendingGames.handler
@@ -827,18 +1070,81 @@ Resources:
       # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt LambdaProcessPendingGamesRole.Arn
       Environment:
         Variables:
           DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
           SCHEDULED_QUESTIONS_QUE_URL: !Ref PendingGamesQue
           WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
+  LambdaProcessPendingGamesPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaProcessPendingGames
+      Principal: dynamodb.amazonaws.com
+      SourceArn: !GetAtt DynamodbGamesTable.StreamArn
+  LambdaProcessPendingGamesRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "AmazonSqsWriteAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "sqs:*"
+                Effect: "Allow"
+                Resource: !GetAtt PendingGamesQue.Arn
+      Policies:
+        - PolicyName: DynamodbGamesTableWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - dynamodb:UpdateItem
+              Resource: !GetAtt DynamodbGamesTable.Arn
+      Policies:
+        - PolicyName: ApiGatewayWebsocketInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - "execute-api:Invoke"
+                - "execute-api:ManageConnections"
+              Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
+      Policies:
+        - PolicyName: ApiGatewayWebsocketInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - "dynamodb:DescribeStream"
+                - "dynamodb:GetRecords"
+                - "dynamodb:GetShardIterator"
+                - "dynamodb:ListStreams"
+                - "logs:CreateLogGroup"
+                - "logs:CreateLogStream"
+                - "logs:PutLogEvents"
+              Resource: !GetAtt DynamodbGamesTable.Arn
+      Path: "/" 
 
-  ProcessPendingRequest:
+  LambdaProcessPendingRequests:
     Type: AWS::Serverless::Function
     DependsOn:
-      - FetchLambdaCodeFromS3
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: processPendingRequests
       Handler: processPendingRequests.handler
@@ -850,17 +1156,64 @@ Resources:
       # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt LambdaProcessPendingRequestsRole.Arn
       Environment:
         Variables:
           QUESTIONS_LIMIT: 5
           DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
           DYNAMODB_REQUESTS_TABLE: !Ref DynamodbRequestsTable
+  LambdaProcessPendingRequestsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaProcessPendingRequests
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt PendingRequestsQue.Arn
+  LambdaProcessPendingRequestsRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "AmazonSqsWriteAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "sqs:*"
+                Effect: "Allow"
+                Resource: !GetAtt PendingGamesQue.Arn
+      Policies:
+        - PolicyName: DynamodbGamesTableWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - dynamodb:PutItem
+              Resource: !GetAtt DynamodbGamesTable.Arn
+      Policies:
+        - PolicyName: DynamodbRequestsTableReadAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - dynamodb:GetItem
+              Resource: !GetAtt DynamodbRequestsTable.Arn
+      Path: "/" 
 
-  ProcessPointsTransfer:
+  LambdaProcessPointsTransfer:
     Type: AWS::Serverless::Function
     DependsOn:
-      - FetchLambdaCodeFromS3
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: processPointsTransfer
       Handler: index.handler
@@ -872,15 +1225,33 @@ Resources:
       # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt LambdaProcessPointsTransferRole.Arn
       Environment:
         Variables:
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
-
-  ProcessResults:
+  LambdaProcessResultsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaProcessResults
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt PendingTransferQue.Arn
+  LambdaProcessPointsTransferRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+  LambdaProcessResults:
     Type: AWS::Serverless::Function
     DependsOn:
-      - FetchLambdaCodeFromS3
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: processResults
       Handler: index.handler
@@ -892,35 +1263,140 @@ Resources:
       # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt LambdaProcessResultsRole.Arn
       Environment:
         Variables:
           DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
           MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
           PENDING_POINTS_TRANSFERS_QUE_URL: !Ref PendingTransferQue
           WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
-
-  ProcessScheduledQuestions:
+  LambdaProcessResultsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaProcessResults
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt PendingResultsQue.Arn
+  LambdaProcessResultsRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "AmazonSqsWriteAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "sqs:*"
+                Effect: "Allow"
+                Resource: !GetAtt PendingTransferQue.Arn
+      Policies:
+        - PolicyName: DynamodbGamesTableReadAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - dynamodb:GetItem
+              Resource: !GetAtt DynamodbGamesTable.Arn
+      Policies:
+        - PolicyName: ApiGatewayWebsocketInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - "execute-api:Invoke"
+                - "execute-api:ManageConnections"
+              Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
+      Path: "/" 
+  LambdaProcessScheduledQuestions:
     Type: AWS::Serverless::Function
     DependsOn:
-      - FetchLambdaCodeFromS3
+      - LambdaBasicExecutionPolicy
     Properties:
       FunctionName: processScheduledQuestions
       Handler: index.handler
       Runtime: nodejs12.x
       CodeUri: ./src/processScheduledQuestions
-      # ReservedConcurrentExecutions: 30
       Layers:
         - Ref: serverlessLayer
-      # Tracing: Active
       Timeout: 3
       MemorySize: 128
-      Role: !GetAtt MatchPlayersRole.Arn
+      Role: !GetAtt LambdaProcessScheduledQuestionsRole.Arn
       Environment:
         Variables:
           DYNAMODB_GAMES_TABLE: !Ref DynamodbGamesTable
           SCHEDULED_QUESTIONS_QUE_URL: !Ref PendingQuestionsQue
           SCHEDULE_RESULTS_PROCESS_QUE_URL: !Ref PendingResultsQue
+          MONGO_DB_URI: mongodb+srv://admin:extra4545@cluster0-xebut.mongodb.net/test?retryWrites=true&w=majority
+          WEBSOCKET_API_ENDPOINT: !Sub "https://${ClickCollectWebsocket}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectWebSocketStage}/@connections"
+  LambdaProcessScheduledQuestionsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaProcessScheduledQuestions
+      Principal: sqs.amazonaws.com
+      SourceArn: !GetAtt PendingQuestionsQue.Arn
+  LambdaProcessScheduledQuestionsRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "AmazonSqsWriteAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "sqs:*"
+                Effect: "Allow"
+                Resource: !GetAtt PendingResultsQue.Arn
+      Policies:
+        - PolicyName: "AmazonSqsWriteAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "sqs:*"
+                Effect: "Allow"
+                Resource: !GetAtt PendingQuestionsQue.Arn
+      Policies:
+        - PolicyName: DynamodbGamesTableReadWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - dynamodb:UpdateItem
+                - dynamodb:GetItem
+              Resource: !GetAtt DynamodbGamesTable.Arn
+      Policies:
+        - PolicyName: ApiGatewayWebsocketInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              Effect: "Allow"
+              Action: 
+                - "execute-api:Invoke"
+                - "execute-api:ManageConnections"
+              Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
+      Path: "/" 
   #######################
   # FUNCTION LAYERS
   #######################
@@ -939,20 +1415,49 @@ Resources:
   #######################
   # IAM POLICIES
   #######################    
-  FetchLambdaCodeFromS3: 
+  # FetchLambdaCodeFromS3: 
+  #   Type: AWS::IAM::Policy
+  #   Properties: 
+  #     PolicyName: FetchLambdaCodeFromS3
+  #     Roles:
+  #     PolicyDocument: 
+  #       Version: '2012-10-17' 
+  #       Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - s3:GetObject
+  #             - s3:GetObjectACL
+  #           Resource: 'arn:aws:s3:::ali-serverless-architecture/*'
+  LambdaBasicExecutionPolicy: 
     Type: AWS::IAM::Policy
-    Properties: 
-      PolicyName: FetchLambdaCodeFromS3
+    Properties:
+      PolicyName: LambdaBasicExecutionPolicy
       Roles:
-        - !Ref MatchPlayersRole
+        - !Ref LambdaWebSocketRouteUpdateLocationRole
+        - !Ref LambdaWebSocketRouteSubmitAnswersRole
+        - !Ref LambdaProcessScheduledQuestionsRole
+        - !Ref LambdaProcessResultsRole
+        - !Ref LambdaProcessPointsTransferRole
+        - !Ref LambdaProcessPendingRequestsRole
+        - !Ref LambdaProcessPendingGamesRole
+        - !Ref LambdaMatchPlayersRole
+        - !Ref CognitoInitializePlayerRole
+        - !Ref WebSocketRouteDisconnectRole
+        - !Ref WebSocketRouteConnectRole
+        - !Ref LambdaSignUpRole
+        - !Ref LambdaCognitoAuthenticatorRole
+        - !Ref LambdaCognitoAuthorizerRole
+        - !Ref WebSocketRouteRejectRequestRole
+        - !Ref WebSocketRouteAcceptRequestRole
       PolicyDocument: 
         Version: '2012-10-17' 
         Statement:
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-              - s3:GetObjectACL
-            Resource: 'arn:aws:s3:::ali-serverless-architecture/*'
+          - Effect: "Allow"
+            Action: 
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: "*"
 Outputs:
   ClickCollectRestApiInvokeURL:
       Value: !Sub "https://${ClickCollectRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ClickCollectRestApiStageName}"
