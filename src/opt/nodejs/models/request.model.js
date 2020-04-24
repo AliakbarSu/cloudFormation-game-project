@@ -137,7 +137,7 @@ const acceptRequestSafe = curry((connector, tableName, currentTime, requestId, p
 const rejectRequestSafe = curry((connector, tableName, currentTime, requestId, playerId) => {
     if(!isValidRequestId(requestId)) {
         return Promise.reject(invalidRequestIdError())
-    }
+    } 
 
     if(!isValidPid(playerId)) {
         return Promise.reject(invalidPidError())
@@ -168,6 +168,7 @@ const rejectRequestSafe = curry((connector, tableName, currentTime, requestId, p
 
 module.exports = {
     acceptRequestSafe,
+    rejectRequestSafe,
     failedToPerformAcceptRequestError,
     addRequestSafe,
     getPendingRequestSafe,

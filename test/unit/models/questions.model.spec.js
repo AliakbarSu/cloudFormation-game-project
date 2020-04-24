@@ -117,6 +117,16 @@ describe("QuestionsModel", function() {
             .to.become([result.Items[0]]).notify(done)
         })
 
+        it("Should return the result if Count is equal to filter limit", (done) => {
+            result = {Count: 1, Items: ["first"]}
+            mockConnector = {
+                scan: fake.returns({promise: fake.resolves(result)})
+            }
+            filters.limit = 2
+            expect(generateQuizeSafe(mockConnector, IdGenerator, mockTablename, filters))
+            .to.become([result.Items[0]]).notify(done)
+        })
+
         it("Should reject if connector.scan fails", (done) => {
             mockConnector.scan = fake.returns({promise: fake.rejects()})
             expect(generateQuizeSafe(mockConnector, IdGenerator, mockTablename, filters))

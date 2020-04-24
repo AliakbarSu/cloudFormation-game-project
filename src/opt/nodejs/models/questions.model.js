@@ -52,10 +52,10 @@ const generateQuizeSafe = curry((connector, IdGenerator, tableName, filters) => 
     }
 
     return connector.scan(queryParams).promise().then(result => {
-        if(result.Count >= filters.limit)
+        if(result.Count > filters.limit)
             return applyFiltersLimit(result.Items, filters.limit)
         else
-            return result.Items
+            return result.Items 
     }).catch(() => Promise.reject(failedToGenerateQuizeError()))
 })
 

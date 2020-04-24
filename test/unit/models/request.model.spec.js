@@ -9,6 +9,7 @@ const {
     failedToPerformAcceptRequestError,
     invalidRequestIdError,
     acceptRequestSafe,
+    rejectRequestSafe,
     getPendingRequestSafe,
 } = require('../../../src/opt/nodejs/models/request.model')
 
@@ -200,6 +201,62 @@ describe("Request Model", function() {
         it("Should reject if connector.update fails", (done) => {
             mockConnector.update = fake.returns({promise: fake.rejects()})
             expect(acceptRequestSafe(
+                mockConnector, 
+                mockTablename, 
+                mockCurrentTime, 
+                mockRequestId, 
+                mockPlayerId)).to.be.rejected.notify(done)
+        })
+    })
+
+    describe("rejectRequestSafe", function() {
+        let mockRequestId, mockTablename, mockPlayerId
+
+        this.beforeEach(() => {
+            mockRequestId = "test_request"
+            mockTablename = "test_table"
+            mockPlayerId = "test_player"
+            mockConnector.update = fake.returns({promise: fake.resolves()})
+        })
+
+        it("Should reject if request id is invalid", (done) => {
+            expect(rejectRequestSafe(mockConnector, mockTablename, mockCurrentTime, "", mockPlayerId))
+            .to.be.rejected.notify(done)
+        })
+
+        it("Should reject if playerId id is invalid", (done) => {
+            expect(rejectRequestSafe(mockConnector, mockTablename, mockCurrentTime, mockRequestId, ""))
+            .to.be.rejected.notify(done)
+        })
+
+        it("Should pass correct data to connector.update function", async () => {
+            await rejectRequestSafe(
+                mockConnector, 
+                mockTablename, 
+                mockCurrentTime, 
+                mockRequestId, 
+                mockPlayerId)
+
+            expect(mockConnector.update.calledOnce).to.be.true
+            expect(mockConnector.update.getCall(0).args[0].TableName).to.equal(mockTablename)
+            expect(mockConnector.update.getCall(0).args[0].ExpressionAttributeValues[":acceptedAt"])
+            .to.be.null
+            expect(mockConnector.update.getCall(0).args[0].ExpressionAttributeValues[":acceptedValue"])
+            .to.be.false
+        })
+
+        it("Should resolve to 'REQUEST_UPDATED_SUCCESSFULLY'", (done) => {
+            expect(rejectRequestSafe(
+                mockConnector, 
+                mockTablename, 
+                mockCurrentTime, 
+                mockRequestId, 
+                mockPlayerId)).to.become('REQUEST_UPDATED_SUCCESSFULLY').notify(done)
+        })
+
+        it("Should reject if connector.update fails", (done) => {
+            mockConnector.update = fake.returns({promise: fake.rejects()})
+            expect(rejectRequestSafe(
                 mockConnector, 
                 mockTablename, 
                 mockCurrentTime, 

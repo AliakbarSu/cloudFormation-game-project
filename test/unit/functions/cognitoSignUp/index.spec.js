@@ -36,11 +36,12 @@ describe("cognitoSignUp", function() {
             email: mockEmail
         }
         getUsernameStub = fake.returns(mockUsername)
-        signUpStub = fake.yields(null, {user: getUsernameStub})
+        signUpStub = fake.yields(null, {user: {getUsername: getUsernameStub}})
         getCognitoUserPoolStub = fake.returns({signUp: signUpStub})
         getCognitoUserAttributesStub = fake(arg => arg)
         mockContext = {
-            awsRequestId: "test_id"
+            awsRequestId: "test_id",
+            callbackWaitsForEmptyEventLoop: true
         }
     })
 
@@ -60,8 +61,8 @@ describe("cognitoSignUp", function() {
     describe("failedToSignUpUserInternalError", () => {
         it("Should return the correct response object", () => {
             const response = failedToSignUpUserInternalError(mockContext)
-            expect(response.errorType).to.equal("InternalServerError")
-            expect(response.httpStatus).to.equal(500)
+            expect(response.name).to.equal("InternalServerError")
+            expect(response.code).to.equal(500)
             expect(response.requestId).to.equal(mockContext.awsRequestId)
             expect(response.message).to.equal("An unknown error has occurred. Please try again.")
         })
@@ -70,8 +71,8 @@ describe("cognitoSignUp", function() {
     describe("failedToSignUpUserInputsError", () => {
         it("Should return the correct response object", () => {
             const response = failedToSignUpUserInputsError(mockContext, "test_message")
-            expect(response.errorType).to.equal("Invalid input data")
-            expect(response.httpStatus).to.equal(400)
+            expect(response.name).to.equal("Invalid Input Data")
+            expect(response.code).to.equal(400)
             expect(response.requestId).to.equal(mockContext.awsRequestId)
             expect(response.message).to.equal("test_message")
         })
@@ -106,11 +107,12 @@ describe("cognitoSignUp", function() {
         this.beforeEach(() => {
             mockAttributes = ["attributeOne"]
         })
+
         it("Should reject if signUp method fails", async () => {
             const testError = new Error("test_error")
             signUpStub = fake.yields(testError)
             try {
-                await signUpUser(signUpStub, mockEmail, mockPassword, mockAttributes)
+                await signUpUser({signUp: signUpStub}, mockEmail, mockPassword, mockAttributes)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal("ENCOUNTERED_ERROR_WHILE_CALLING_SIGNUP")
@@ -118,8 +120,8 @@ describe("cognitoSignUp", function() {
         })
 
         it("Should resolve to data object if signUp method succeeded", async () => {
-            const result = await signUpUser(signUpStub, mockEmail, mockPassword, mockAttributes)
-            expect(result.user).to.deep.equal(getUsernameStub)
+            const result = await signUpUser({signUp: signUpStub}, mockEmail, mockPassword, mockAttributes)
+            expect(result.user.getUsername).to.deep.equal(getUsernameStub)
             expect(signUpStub.calledOnce).to.be.true
             expect(signUpStub.getCall(0).args[0]).to.equal(mockEmail)
             expect(signUpStub.getCall(0).args[1]).to.equal(mockPassword)
@@ -140,8 +142,19 @@ describe("cognitoSignUp", function() {
                     mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.errorType).to.equal("InternalServerError")
+                expect(err.name).to.equal("InternalServerError")
             }
+        })
+
+        it("Should set callbackWaitsForEmptyEventLoop to false", async () => {
+            await handlerSafe(
+                getCognitoUserPoolStub, 
+                getCognitoUserAttributesStub, 
+                mockUserPoolId, 
+                mockClientId, 
+                mockEvent,
+                mockContext)
+            expect(mockContext.callbackWaitsForEmptyEventLoop).to.be.false
         })
 
         it("Should handle invalid ClientId", async () => {
@@ -156,7 +169,7 @@ describe("cognitoSignUp", function() {
                     mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.errorType).to.equal("InternalServerError")
+                expect(err.name).to.equal("InternalServerError")
             }
         })
 
@@ -208,21 +221,6 @@ describe("cognitoSignUp", function() {
             }
         })
 
-        it("Should handle error gracefully if getting signUp method fails", async () => {
-            getCognitoUserPoolStub = fake.returns({signUp: null})
-            try {
-                await handlerSafe(
-                    getCognitoUserPoolStub, 
-                    getCognitoUserAttributesStub, 
-                    mockUserPoolId, 
-                    mockClientId, 
-                    mockEvent,
-                    mockContext)
-                throw new Error("FALSE_PASS")
-            }catch(err) {
-                expect(err.errorType).to.equal("InternalServerError")
-            }
-        })
 
         it("Should handle error gracefully if signing up user fails", async () => {
             signUpStub = fake.yields("error")
@@ -237,7 +235,7 @@ describe("cognitoSignUp", function() {
                     mockContext)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.errorType).to.equal("InternalServerError")
+                expect(err.name).to.equal("InternalServerError")
             }
         })
 
@@ -263,10 +261,9 @@ describe("cognitoSignUp", function() {
                 mockEvent,
                 mockContext
             )
-            expect(signUpStub.getCall(0).args[0]).to.equal(mockEmail)
+            expect(signUpStub.getCall(0).args[0]).to.equal(mockUsername)
             expect(signUpStub.getCall(0).args[1]).to.equal(mockPassword)
             expect(signUpStub.getCall(0).args[2][0].Name).to.equal("email")
-            expect(signUpStub.getCall(0).args[2][1].Name).to.equal("username")
         })
 
         it("Should create the correct user attributes", async () => {
@@ -280,8 +277,6 @@ describe("cognitoSignUp", function() {
             )
             expect(getCognitoUserAttributesStub.getCall(0).args[0].Name).to.equal("email")
             expect(getCognitoUserAttributesStub.getCall(0).args[0].Value).to.equal(mockEmail)
-            expect(getCognitoUserAttributesStub.getCall(1).args[0].Name).to.equal("username")
-            expect(getCognitoUserAttributesStub.getCall(1).args[0].Value).to.equal(mockUsername)
         })
     })
 })

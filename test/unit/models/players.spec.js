@@ -1,5 +1,5 @@
 const {
-    invalidModelError,
+    invalidSchemaError,
     failedToConvertIdToObjectIdError,
     failedToConvertIdsToObjectIdsError,
     failedToCreatePlayerError,
@@ -56,7 +56,7 @@ describe('Players Model', function() {
     mockSub, connectionStub, mockLatitude, mockLongitude, mockConnectionId,
     mockResponse, createStub, updateStub, findOneStub, deleteStub, findStub,
     updateManyStub, updateOneStub, mockLanguage, mockCategory, mockLevel,
-    mockDistance, mockId
+    mockDistance, mockId, mockSchema
 
     this.beforeEach(() => {
         mockPlayerId = "test_player_id"
@@ -73,6 +73,7 @@ describe('Players Model', function() {
         mockLevel = 2
         mockDistance = 10
         mockId = "test_id"
+        mockSchema = "test_schema"
         updateStub = fake.resolves(mockResponse)
         findOneStub = fake.resolves(mockResponse)
         deleteStub = fake.resolves(mockResponse)
@@ -101,9 +102,9 @@ describe('Players Model', function() {
         })
     })
 
-    describe("invalidModelError", function() {
+    describe("invalidSchemaError", function() {
         it("Should create a new error object", () => {
-            expect(invalidModelError().message).to.equal("INVALID_MODEL")
+            expect(invalidSchemaError().message).to.equal("INVALID_SCHEMA")
         })
     })
 
@@ -216,7 +217,7 @@ describe('Players Model', function() {
     describe("createPlayerSafe", function() {
         it("Should reject if sub is invalid", async () => {
             try {
-                await createPlayerSafe(connectionStub, null, mockEmail)
+                await createPlayerSafe(connectionStub, mockSchema, null, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidSubError().message)
@@ -225,22 +226,20 @@ describe('Players Model', function() {
 
         it("Should reject if email is invalid", async () => {
             try {
-                await createPlayerSafe(connectionStub, mockSub, "")
+                await createPlayerSafe(connectionStub, mockSchema, mockSub, "")
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidEmail().message)
             }
         })
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await createPlayerSafe(connectionStub, mockSub, mockEmail)
+                await createPlayerSafe(connectionStub, mockSchema, mockSub, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -249,7 +248,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await createPlayerSafe(connectionStub, mockSub, mockEmail)
+                await createPlayerSafe(connectionStub, mockSchema, mockSub, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToCreatePlayerError().message)
@@ -261,7 +260,7 @@ describe('Players Model', function() {
                 model: fake.returns({create: fake.rejects()})
             }
             try {
-                await createPlayerSafe(connectionStub, mockSub, mockEmail)
+                await createPlayerSafe(connectionStub, mockSchema, mockSub, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToCreatePlayerError().message)
@@ -269,7 +268,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.create succeed", async () => {
-            const result = await createPlayerSafe(connectionStub, mockSub, mockEmail)
+            const result = await createPlayerSafe(connectionStub, mockSchema, mockSub, mockEmail)
             expect(result).to.deep.equal(mockResponse)
             expect(createStub.calledOnce).to.be.true
             expect(createStub.getCall(0).args[0]._id).to.equal(mockSub)
@@ -281,22 +280,20 @@ describe('Players Model', function() {
 
         it("Should reject if email is invalid", async () => {
             try {
-                await findUserByEmailSafe(connectionStub, "")
+                await findUserByEmailSafe(connectionStub, mockSchema, "")
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidEmail().message)
             }
         })
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await findUserByEmailSafe(connectionStub, mockEmail)
+                await findUserByEmailSafe(connectionStub, mockSchema, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -305,7 +302,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await findUserByEmailSafe(connectionStub, mockEmail)
+                await findUserByEmailSafe(connectionStub, mockSchema, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToFindUserByEmailError().message)
@@ -317,7 +314,7 @@ describe('Players Model', function() {
                 model: fake.returns({findOne: fake.rejects()})
             }
             try {
-                await findUserByEmailSafe(connectionStub, mockEmail)
+                await findUserByEmailSafe(connectionStub, mockSchema, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToFindUserByEmailError().message)
@@ -325,7 +322,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.findOne succeed", async () => {
-            const result = await findUserByEmailSafe(connectionStub, mockEmail)
+            const result = await findUserByEmailSafe(connectionStub, mockSchema, mockEmail)
             expect(result).to.deep.equal(mockResponse)
             expect(findOneStub.calledOnce).to.be.true
             expect(findOneStub.getCall(0).args[0].email).to.equal(mockEmail)
@@ -337,22 +334,20 @@ describe('Players Model', function() {
 
         it("Should reject if connection id is invalid", async () => {
             try {
-                await findUserByConIdSafe(connectionStub, "")
+                await findUserByConIdSafe(connectionStub, mockSchema, "")
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidConnectionIdError().message)
             }
         })
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await findUserByConIdSafe(connectionStub, mockConnectionId)
+                await findUserByConIdSafe(connectionStub, mockSchema, mockConnectionId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -361,7 +356,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await findUserByConIdSafe(connectionStub, mockConnectionId)
+                await findUserByConIdSafe(connectionStub, mockSchema, mockConnectionId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToFindUserByConIdError().message)
@@ -373,7 +368,7 @@ describe('Players Model', function() {
                 model: fake.returns({findOne: fake.rejects()})
             }
             try {
-                await findUserByConIdSafe(connectionStub, mockConnectionId)
+                await findUserByConIdSafe(connectionStub, mockSchema, mockConnectionId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToFindUserByConIdError().message)
@@ -381,7 +376,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.findOne succeed", async () => {
-            const result = await findUserByConIdSafe(connectionStub, mockConnectionId)
+            const result = await findUserByConIdSafe(connectionStub, mockSchema, mockConnectionId)
             expect(result).to.deep.equal(mockResponse)
             expect(findOneStub.calledOnce).to.be.true
             expect(findOneStub.getCall(0).args[0].connectionId).to.equal(mockConnectionId)
@@ -392,22 +387,20 @@ describe('Players Model', function() {
 
         it("Should reject if player id is invalid", async () => {
             try {
-                await findUserByIdSafe(connectionStub, idConverterStub, "")
+                await findUserByIdSafe(connectionStub, idConverterStub, mockSchema, "")
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidPidError().message)
             }
         })
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await findUserByIdSafe(connectionStub, idConverterStub, mockPlayerId)
+                await findUserByIdSafe(connectionStub, idConverterStub, mockSchema, mockPlayerId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -416,7 +409,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await findUserByIdSafe(connectionStub, idConverterStub, mockPlayerId)
+                await findUserByIdSafe(connectionStub, idConverterStub, mockSchema, mockPlayerId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToFindUserByIdError().message)
@@ -428,7 +421,7 @@ describe('Players Model', function() {
                 model: fake.returns({findOne: fake.rejects()})
             }
             try {
-                await findUserByIdSafe(connectionStub, idConverterStub, mockPlayerId)
+                await findUserByIdSafe(connectionStub, idConverterStub, mockSchema, mockPlayerId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToFindUserByIdError().message)
@@ -436,7 +429,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.findOne succeed", async () => {
-            const result = await findUserByIdSafe(connectionStub, idConverterStub, mockPlayerId)
+            const result = await findUserByIdSafe(connectionStub, idConverterStub, mockSchema, mockPlayerId)
             expect(result).to.deep.equal(mockResponse)
             expect(findOneStub.calledOnce).to.be.true
             expect(findOneStub.getCall(0).args[0]._id).to.equal(mockPlayerId)
@@ -447,22 +440,20 @@ describe('Players Model', function() {
 
         it("Should reject if player ids is invalid", async () => {
             try {
-                await getPlayersConIdsSafe(connectionStub, idConverterStub, "")
+                await getPlayersConIdsSafe(connectionStub, idConverterStub, mockSchema, "")
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidPlayerIdsError().message)
             }
         })
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await getPlayersConIdsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await getPlayersConIdsSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -471,7 +462,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await getPlayersConIdsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await getPlayersConIdsSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToGetPlayersConIdsError().message)
@@ -483,7 +474,7 @@ describe('Players Model', function() {
                 model: fake.returns({find: fake.rejects()})
             }
             try {
-                await getPlayersConIdsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await getPlayersConIdsSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToGetPlayersConIdsError().message)
@@ -491,7 +482,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.find succeed", async () => {
-            const result = await getPlayersConIdsSafe(connectionStub, idConverterStub, mockPlayerIds)
+            const result = await getPlayersConIdsSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
             expect(result[0]).to.equal(mockResponse[0].connectionId)
             expect(findStub.calledOnce).to.be.true
             expect(findStub.getCall(0).args[0]._id.$in).to.deep.equal(mockPlayerIds)
@@ -502,22 +493,20 @@ describe('Players Model', function() {
 
         it("Should reject if player ids is invalid", async () => {
             try {
-                await getPlayersPointsSafe(connectionStub, idConverterStub, "")
+                await getPlayersPointsSafe(connectionStub, idConverterStub, mockSchema, "")
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidPlayerIdsError().message)
             }
         })
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await getPlayersPointsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await getPlayersPointsSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -526,7 +515,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await getPlayersPointsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await getPlayersPointsSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToGetPlayersPointsError().message)
@@ -538,7 +527,7 @@ describe('Players Model', function() {
                 model: fake.returns({find: fake.rejects()})
             }
             try {
-                await getPlayersPointsSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await getPlayersPointsSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToGetPlayersPointsError().message)
@@ -551,7 +540,7 @@ describe('Players Model', function() {
             connectionStub = {
                 model: fake.returns({find: findStub})
             }
-            const result = await getPlayersPointsSafe(connectionStub, idConverterStub, mockPlayerIds)
+            const result = await getPlayersPointsSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
             expect(result[0]._id).to.equal(mockResponse[0]._id)
             expect(result[0].points).to.equal(mockResponse[0].points)
             expect(findStub.calledOnce).to.be.true
@@ -563,22 +552,20 @@ describe('Players Model', function() {
 
         it("Should reject if player ids is invalid", async () => {
             try {
-                await markPlayersAsPlayingSafe(connectionStub, idConverterStub, "")
+                await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockSchema, "")
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidPlayerIdsError().message)
             }
         })
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -587,7 +574,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToMarkPlayersAsPlayingError().message)
@@ -599,7 +586,7 @@ describe('Players Model', function() {
                 model: fake.returns({updateMany: fake.rejects()})
             }
             try {
-                await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockPlayerIds)
+                await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToMarkPlayersAsPlayingError().message)
@@ -607,7 +594,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.updateMany succeed", async () => {
-            const result = await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockPlayerIds)
+            const result = await markPlayersAsPlayingSafe(connectionStub, idConverterStub, mockSchema, mockPlayerIds)
             expect(result).to.deep.equal(mockResponse)
             expect(updateManyStub.calledOnce).to.be.true
             expect(updateManyStub.getCall(0).args[0]._id.$in).to.deep.equal(mockPlayerIds)
@@ -619,7 +606,7 @@ describe('Players Model', function() {
 
         it("Should reject if connection id is invalid", async () => {
             try {
-                await updatePlayersLocationSafe(connectionStub, null, mockLatitude, mockLongitude)
+                await updatePlayersLocationSafe(connectionStub, mockSchema, null, mockLatitude, mockLongitude)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidConnectionIdError().message)
@@ -628,7 +615,7 @@ describe('Players Model', function() {
 
         it("Should reject if latitude is invalid", async () => {
             try {
-                await updatePlayersLocationSafe(connectionStub, mockConnectionId, null, mockLongitude)
+                await updatePlayersLocationSafe(connectionStub, mockSchema, mockConnectionId, null, mockLongitude)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidLatitudeError().message)
@@ -637,22 +624,20 @@ describe('Players Model', function() {
 
         it("Should reject if longitude is invalid", async () => {
             try {
-                await updatePlayersLocationSafe(connectionStub, mockConnectionId, mockLatitude, null)
+                await updatePlayersLocationSafe(connectionStub, mockSchema, mockConnectionId, mockLatitude, null)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidLongitudeError().message)
             }
         })
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await updatePlayersLocationSafe(connectionStub, mockConnectionId, mockLatitude, mockLongitude)
+                await updatePlayersLocationSafe(connectionStub, mockSchema, mockConnectionId, mockLatitude, mockLongitude)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -661,7 +646,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await updatePlayersLocationSafe(connectionStub, mockConnectionId, mockLatitude, mockLongitude)
+                await updatePlayersLocationSafe(connectionStub, mockSchema, mockConnectionId, mockLatitude, mockLongitude)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToUpdatePlayerLocationError().message)
@@ -673,7 +658,7 @@ describe('Players Model', function() {
                 model: fake.returns({updateOne: fake.rejects()})
             }
             try {
-                await updatePlayersLocationSafe(connectionStub, mockConnectionId, mockLatitude, mockLongitude)
+                await updatePlayersLocationSafe(connectionStub, mockSchema, mockConnectionId, mockLatitude, mockLongitude)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToUpdatePlayerLocationError().message)
@@ -681,7 +666,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.updateOne succeed", async () => {
-            const result = await updatePlayersLocationSafe(connectionStub, mockConnectionId, mockLatitude, mockLongitude)
+            const result = await updatePlayersLocationSafe(connectionStub, mockSchema, mockConnectionId, mockLatitude, mockLongitude)
             expect(result).to.deep.equal(mockResponse)
             expect(updateOneStub.calledOnce).to.be.true
             expect(updateOneStub.getCall(0).args[0].connectionId).to.equal(mockConnectionId)
@@ -697,7 +682,7 @@ describe('Players Model', function() {
 
         it("Should reject if connection id is invalid", async () => {
             try {
-                await registerConnectionIdSafe(connectionStub, null, mockEmail)
+                await registerConnectionIdSafe(connectionStub, mockSchema, null, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidConnectionIdError().message)
@@ -706,7 +691,7 @@ describe('Players Model', function() {
 
         it("Should reject if email is invalid", async () => {
             try {
-                await registerConnectionIdSafe(connectionStub, mockConnectionId, null)
+                await registerConnectionIdSafe(connectionStub, mockSchema, mockConnectionId, null)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidEmail().message)
@@ -714,15 +699,13 @@ describe('Players Model', function() {
         })
 
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await registerConnectionIdSafe(connectionStub, mockConnectionId, mockEmail)
+                await registerConnectionIdSafe(connectionStub, mockSchema, mockConnectionId, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -731,7 +714,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await registerConnectionIdSafe(connectionStub, mockConnectionId, mockEmail)
+                await registerConnectionIdSafe(connectionStub, mockSchema, mockConnectionId, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToRegisterConnectionIdError().message)
@@ -743,7 +726,7 @@ describe('Players Model', function() {
                 model: fake.returns({updateOne: fake.rejects()})
             }
             try {
-                await registerConnectionIdSafe(connectionStub, mockConnectionId, mockEmail)
+                await registerConnectionIdSafe(connectionStub, mockSchema, mockConnectionId, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToRegisterConnectionIdError().message)
@@ -751,7 +734,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.updateOne succeed", async () => {
-            const result = await registerConnectionIdSafe(connectionStub, mockConnectionId, mockEmail)
+            const result = await registerConnectionIdSafe(connectionStub, mockSchema, mockConnectionId, mockEmail)
             expect(result).to.deep.equal(mockResponse)
             expect(updateOneStub.calledOnce).to.be.true
             expect(updateOneStub.getCall(0).args[0].email).to.equal(mockEmail)
@@ -765,7 +748,7 @@ describe('Players Model', function() {
 
         it("Should reject if connection id is invalid", async () => {
             try {
-                await deregisterConnectionIdSafe(connectionStub, null, mockEmail)
+                await deregisterConnectionIdSafe(connectionStub, mockSchema, null, mockEmail)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(invalidConnectionIdError().message)
@@ -773,15 +756,13 @@ describe('Players Model', function() {
         })
 
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
-                await deregisterConnectionIdSafe(connectionStub, mockConnectionId)
+                await deregisterConnectionIdSafe(connectionStub, mockSchema, mockConnectionId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -790,7 +771,7 @@ describe('Players Model', function() {
                 model: fake.throws()
             }
             try {
-                await deregisterConnectionIdSafe(connectionStub, mockConnectionId)
+                await deregisterConnectionIdSafe(connectionStub, mockSchema, mockConnectionId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToDeregisterConnectionIdError().message)
@@ -802,7 +783,7 @@ describe('Players Model', function() {
                 model: fake.returns({updateOne: fake.rejects()})
             }
             try {
-                await deregisterConnectionIdSafe(connectionStub, mockConnectionId)
+                await deregisterConnectionIdSafe(connectionStub, mockSchema, mockConnectionId)
                 throw new Error("FALSE_PASS")
             }catch(err) {
                 expect(err.message).to.equal(failedToDeregisterConnectionIdError().message)
@@ -810,7 +791,7 @@ describe('Players Model', function() {
         })
 
         it("Should resolve if model.updateOne succeed", async () => {
-            const result = await deregisterConnectionIdSafe(connectionStub, mockConnectionId)
+            const result = await deregisterConnectionIdSafe(connectionStub, mockSchema, mockConnectionId)
             expect(result).to.deep.equal(mockResponse)
             expect(updateOneStub.calledOnce).to.be.true
             expect(updateOneStub.getCall(0).args[0].connectionId).to.equal(mockConnectionId)
@@ -826,7 +807,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     null,
                     mockLatitude,
                     mockLongitude,
@@ -844,7 +826,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     null,
                     mockLongitude,
@@ -862,7 +845,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     mockLatitude,
                     null,
@@ -880,7 +864,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     mockLatitude,
                     mockLongitude,
@@ -898,7 +883,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     mockLatitude,
                     mockLongitude,
@@ -916,7 +902,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     mockLatitude,
                     mockLongitude,
@@ -934,7 +921,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     mockLatitude,
                     mockLongitude,
@@ -949,14 +937,13 @@ describe('Players Model', function() {
         })
 
 
-        it("Should reject if model is invalid", async () => {
-            connectionStub = {
-                model: null
-            }
+        it("Should reject if schema is invalid", async () => {
+            mockSchema = null
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     mockLatitude,
                     mockLongitude,
@@ -966,7 +953,7 @@ describe('Players Model', function() {
                     mockDistance)
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal(invalidModelError().message)
+                expect(err.message).to.equal(invalidSchemaError().message)
             }
         })
 
@@ -977,7 +964,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     mockLatitude,
                     mockLongitude,
@@ -998,7 +986,8 @@ describe('Players Model', function() {
             try {
                 await searchForPlayersSafe(
                     connectionStub,
-                    idConverterStub, 
+                    idConverterStub,
+                    mockSchema, 
                     mockId,
                     mockLatitude,
                     mockLongitude,
@@ -1015,7 +1004,8 @@ describe('Players Model', function() {
         it("Should resolve model.aggregate succeed", async () => {
             const result = await searchForPlayersSafe(
                 connectionStub,
-                idConverterStub, 
+                idConverterStub,
+                mockSchema, 
                 mockId,
                 mockLatitude,
                 mockLongitude,

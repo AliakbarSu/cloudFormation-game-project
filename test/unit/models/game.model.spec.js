@@ -6,7 +6,7 @@ const {
     failedToGetPutMethodError,
     failedToGetQueryMethodError,
     failedToGetQuestionsError,
-    failedToGetUpdateMethodError,
+    failedToGetUpdateMethodError, 
     failedToMarkQuestionAsFetchedError,
     failedToSubmitAnswersError,
     constructCreateGameObject,
@@ -498,7 +498,7 @@ describe("GameModel", function() {
     describe("submitAnswer", function() {
 
         it("Should handle invalid tableName", async () => {
-            mockGameId = null
+            mockTableName = null
             try {
                 await submitAnswersSafe(
                     connectorStub,
@@ -511,7 +511,7 @@ describe("GameModel", function() {
                 )
                 throw new Error("FALSE_PASS")
             }catch(err) {
-                expect(err.message).to.equal("INVALID_GAME_ID_PROVIDED")
+                expect(err.message).to.equal("INVALID_TABLE_NAME_PROVIDED")
             }
         })
 
